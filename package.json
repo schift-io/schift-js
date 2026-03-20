@@ -1,0 +1,67 @@
+{
+  "name": "@schift-io/sdk",
+  "version": "0.2.0",
+  "description": "Schift — Multimodal Embedding API & Model Routing SDK",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./workflow-editor": {
+      "types": "./dist/workflow-editor.d.ts",
+      "import": "./dist/workflow-editor.js",
+      "require": "./dist/workflow-editor.cjs"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "tsc --noEmit",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "embedding",
+    "multimodal",
+    "vector",
+    "ai",
+    "openai",
+    "gemini",
+    "model-routing",
+    "search"
+  ],
+  "author": "Schift <hello@schift.io>",
+  "license": "MIT",
+  "homepage": "https://schift.io",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/schift-io/schift-js"
+  },
+  "peerDependencies": {
+    "react": ">=18.0.0",
+    "react-dom": ">=18.0.0"
+  },
+  "peerDependenciesMeta": {
+    "react": { "optional": true },
+    "react-dom": { "optional": true }
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.5.0",
+    "vitest": "^2.0.0"
+  }
+}
