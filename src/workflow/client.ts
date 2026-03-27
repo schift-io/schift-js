@@ -15,6 +15,13 @@ import type {
   ListBlockTypesResponse,
   ListTemplatesResponse,
 } from "./types.js";
+import type { WorkflowDefinition } from "./yaml.js";
+import {
+  workflowFromYaml,
+  workflowToYaml,
+  definitionFromApiResponse,
+  definitionToApiDict,
+} from "./yaml.js";
 
 /**
  * HTTP transport interface that the parent Schift client provides.
@@ -32,6 +39,14 @@ const BASE = "/v1/workflows";
 /** Cast an object to the generic record type expected by HttpTransport. */
 function toBody(obj: object): Record<string, unknown> {
   return obj as unknown as Record<string, unknown>;
+}
+
+/** K-H4: Normalize backend "nodes" key to SDK "blocks" key in workflow graph. */
+function normalizeWorkflow(wf: Workflow): Workflow {
+  if (wf.graph && !wf.graph.blocks && wf.graph.nodes) {
+    wf.graph.blocks = wf.graph.nodes;
+  }
+  return wf;
 }
 
 /**
@@ -69,22 +84,26 @@ export class WorkflowClient {
    * Create a new workflow.
    */
   async create(request: CreateWorkflowRequest): Promise<Workflow> {
-    return this.http.post<Workflow>(BASE, toBody(request));
+    const wf = await this.http.post<Workflow>(BASE, toBody(request));
+    return normalizeWorkflow(wf);
   }
 
   /**
    * List all workflows in the current project/org.
    */
   async list(): Promise<Workflow[]> {
-    const resp = await this.http.get<ListWorkflowsResponse>(BASE);
-    return resp.workflows;
+    // K-H3: Handle both {workflows: [...]} and bare array responses
+    const resp = await this.http.get<ListWorkflowsResponse | Workflow[]>(BASE);
+    const workflows = Array.isArray(resp) ? resp : resp.workflows;
+    return workflows.map(normalizeWorkflow);
   }
 
   /**
    * Get a single workflow by ID.
    */
   async get(workflowId: string): Promise<Workflow> {
-    return this.http.get<Workflow>(`${BASE}/${workflowId}`);
+    const wf = await this.http.get<Workflow>(`${BASE}/${workflowId}`);
+    return normalizeWorkflow(wf);
   }
 
   /**
@@ -94,10 +113,11 @@ export class WorkflowClient {
     workflowId: string,
     request: UpdateWorkflowRequest,
   ): Promise<Workflow> {
-    return this.http.patch<Workflow>(
+    const wf = await this.http.patch<Workflow>(
       `${BASE}/${workflowId}`,
       toBody(request),
     );
+    return normalizeWorkflow(wf);
   }
 
   /**
@@ -194,5 +214,55 @@ export class WorkflowClient {
       `${BASE}/meta/templates`,
     );
     return resp.templates;
+  }
+
+  // ---- YAML Import / Export ----
+
+  /**
+   * Import a workflow from a YAML string. Creates a new workflow on the server.
+   * Requires `js-yaml` to be installed.
+   */
+  async importYaml(yamlStr: string): Promise<Workflow> {
+    const def = await workflowFromYaml(yamlStr);
+    const body = definitionToApiDict(def);
+    const wf = await this.http.post<Workflow>(BASE, body);
+    return normalizeWorkflow(wf);
+  }
+
+  /**
+   * Export a workflow as a YAML string.
+   * Requires `js-yaml` to be installed.
+   */
+  async exportYaml(workflowId: string): Promise<string> {
+    const wf = await this.get(workflowId);
+    const def = definitionFromApiResponse(
+      wf as unknown as Record<string, unknown>,
+    );
+    return workflowToYaml(def);
+  }
+
+  // ---- Runs ----
+
+  /**
+   * List all runs for a workflow.
+   */
+  async listRuns(workflowId: string): Promise<any[]> {
+    return this.http.get(`${BASE}/${workflowId}/runs`);
+  }
+
+  /**
+   * Get a specific run by ID.
+   */
+  async getRun(workflowId: string, runId: string): Promise<any> {
+    return this.http.get(`${BASE}/${workflowId}/runs/${runId}`);
+  }
+
+  // ---- Generation ----
+
+  /**
+   * Generate text using the workflow's LLM configuration.
+   */
+  async generate(prompt: string, model?: string): Promise<any> {
+    return this.http.post(`${BASE}/generate`, { prompt, model });
   }
 }

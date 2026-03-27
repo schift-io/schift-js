@@ -7,6 +7,8 @@ import type {
   WorkflowGraph,
   CreateWorkflowRequest,
 } from "./types.js";
+import type { WorkflowDefinition, BlockDef, EdgeDef } from "./yaml.js";
+import { titleFromType } from "./yaml.js";
 
 // ---- Builder Block Descriptor ----
 
@@ -49,6 +51,63 @@ export class WorkflowBuilder {
   constructor(name: string) {
     this._name = name;
     this._description = "";
+  }
+
+  /**
+   * Create a WorkflowBuilder from a WorkflowDefinition (e.g. parsed from YAML).
+   */
+  static fromDefinition(def: WorkflowDefinition): WorkflowBuilder {
+    const builder = new WorkflowBuilder(def.name);
+    if (def.description) builder.description(def.description);
+
+    for (const b of def.blocks) {
+      builder.addBlock(b.id, {
+        type: b.type as BlockType,
+        title: b.title,
+        position: b.position,
+        config: b.config,
+      });
+    }
+
+    for (const e of def.edges) {
+      builder.connect(e.source, e.target, e.source_handle, e.target_handle);
+    }
+
+    return builder;
+  }
+
+  /**
+   * Export the current builder state as a WorkflowDefinition.
+   */
+  toDefinition(): WorkflowDefinition {
+    const blocks: BlockDef[] = Array.from(this._blocks.values()).map((b) => {
+      const bd: BlockDef = { id: b.id, type: b.type };
+      if (b.title && b.title !== b.id && b.title !== titleFromType(b.type)) {
+        bd.title = b.title;
+      }
+      if (b.position && (b.position.x !== 0 || b.position.y !== 0)) {
+        bd.position = { x: b.position.x, y: b.position.y };
+      }
+      if (b.config && Object.keys(b.config).length) {
+        bd.config = b.config;
+      }
+      return bd;
+    });
+
+    const edges: EdgeDef[] = this._edges.map((e) => {
+      const ed: EdgeDef = { source: e.source, target: e.target };
+      if (e.source_handle) ed.source_handle = e.source_handle;
+      if (e.target_handle) ed.target_handle = e.target_handle;
+      return ed;
+    });
+
+    return {
+      version: 1,
+      name: this._name,
+      description: this._description || undefined,
+      blocks,
+      edges,
+    };
   }
 
   /**

@@ -439,9 +439,9 @@ describe("WorkflowClient", () => {
 // =====================================================================
 
 describe("Type constants", () => {
-  it("BlockType has all 25 block types", () => {
+  it("BlockType has all 29 block types", () => {
     const types = Object.values(BlockType);
-    expect(types).toHaveLength(25);
+    expect(types).toHaveLength(29);
     expect(types).toContain("start");
     expect(types).toContain("end");
     expect(types).toContain("document_loader");
@@ -465,9 +465,10 @@ describe("Type constants", () => {
     expect(templates).toContain("agentic_rag");
   });
 
-  it("WorkflowStatus has draft, active, archived", () => {
+  it("WorkflowStatus has draft, active, published, archived", () => {
     expect(WorkflowStatus.DRAFT).toBe("draft");
     expect(WorkflowStatus.ACTIVE).toBe("active");
+    expect(WorkflowStatus.PUBLISHED).toBe("published");
     expect(WorkflowStatus.ARCHIVED).toBe("archived");
   });
 });

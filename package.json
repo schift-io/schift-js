@@ -1,6 +1,6 @@
 {
   "name": "@schift-io/sdk",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Schift — Multimodal Embedding API & Model Routing SDK",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -40,21 +40,30 @@
     "search"
   ],
   "author": "Schift <hello@schift.io>",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "homepage": "https://schift.io",
   "repository": {
     "type": "git",
     "url": "https://github.com/schift-io/schift-js"
   },
   "peerDependencies": {
+    "js-yaml": ">=4.0.0",
     "react": ">=18.0.0",
     "react-dom": ">=18.0.0"
   },
   "peerDependenciesMeta": {
-    "react": { "optional": true },
-    "react-dom": { "optional": true }
+    "js-yaml": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    },
+    "react-dom": {
+      "optional": true
+    }
   },
   "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
     "@types/node": "^25.5.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",

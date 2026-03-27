@@ -1,17 +1,17 @@
-# @schift/sdk
+# @schift-io/sdk
 
 Schift TypeScript SDK — Multimodal Embedding API & Model Routing.
 
 ## Install
 
 ```bash
-npm install @schift/sdk
+npm install @schift-io/sdk
 ```
 
 ## Quick Start
 
 ```typescript
-import { Schift } from "@schift/sdk";
+import { Schift } from "@schift-io/sdk";
 
 const client = new Schift({ apiKey: "sch_your_api_key" });
 
@@ -87,18 +87,126 @@ await client.deleteCollection("collection-id");
 
 ### Workflows
 
-Build and run RAG pipelines:
+Build and run RAG pipelines as composable DAGs.
+
+#### Quick Start
 
 ```typescript
-// Create a workflow
+// Create from template or blank
 const wf = await client.workflows.create({ name: "My RAG Pipeline" });
 
-// List workflows
-const workflows = await client.workflows.list();
-
-// Run a workflow
-const result = await client.workflows.run(wf.id, { query: "hello" });
+// Run with inputs (multiple values supported)
+const result = await client.workflows.run(wf.id, {
+  query: "maternity leave policy",
+  language: "ko",
+});
+console.log(result.outputs);
 ```
+
+#### CRUD
+
+```typescript
+const wf = await client.workflows.create({ name: "Pipeline" });
+const all = await client.workflows.list();
+const one = await client.workflows.get(wf.id);
+const updated = await client.workflows.update(wf.id, { name: "Renamed" });
+await client.workflows.delete(wf.id);
+```
+
+#### Blocks & Edges
+
+```typescript
+// Add blocks
+const retriever = await client.workflows.addBlock(wf.id, {
+  type: "retriever",
+  title: "Search Docs",
+  config: { collection: "my-docs", top_k: 5, rerank: true },
+});
+
+const llm = await client.workflows.addBlock(wf.id, {
+  type: "llm",
+  config: {
+    model: "openai/gpt-4o-mini", // or "anthropic/claude-sonnet-4-20250514", "gemini-2.5-flash"
+    temperature: 0.7,
+  },
+});
+
+// Connect blocks
+await client.workflows.addEdge(wf.id, {
+  source: retriever.id,
+  target: llm.id,
+});
+
+// Remove
+await client.workflows.removeBlock(wf.id, retriever.id);
+await client.workflows.removeEdge(wf.id, edgeId);
+```
+
+#### WorkflowBuilder (Fluent API)
+
+Build a graph locally, then send to the API in one call:
+
+```typescript
+import { WorkflowBuilder } from "@schift-io/sdk";
+
+const request = new WorkflowBuilder("My RAG Pipeline")
+  .description("Retrieval-augmented generation")
+  .addBlock("start", { type: "start" })
+  .addBlock("retriever", {
+    type: "retriever",
+    config: { collection: "my-docs", top_k: 5 },
+  })
+  .addBlock("prompt", {
+    type: "prompt_template",
+    config: { template: "Context:\n{{results}}\n\nQ: {{query}}" },
+  })
+  .addBlock("llm", {
+    type: "llm",
+    config: { model: "openai/gpt-4o-mini" },
+  })
+  .addBlock("end", { type: "end" })
+  .connect("start", "retriever")
+  .connect("retriever", "prompt")
+  .connect("prompt", "llm")
+  .connect("llm", "end")
+  .build();
+
+const wf = await client.workflows.create(request);
+```
+
+#### YAML Import / Export
+
+```typescript
+// Export
+const yaml = await client.workflows.exportYaml(wf.id);
+
+// Import from YAML string
+const imported = await client.workflows.importYaml(yamlString);
+```
+
+#### Validation & Meta
+
+```typescript
+// Validate graph
+const { valid, errors } = await client.workflows.validate(wf.id);
+
+// List available block types
+const blockTypes = await client.workflows.getBlockTypes();
+
+// List available templates
+const templates = await client.workflows.getTemplates();
+```
+
+#### Block Types
+
+| Category | Types |
+|----------|-------|
+| Control | `start`, `end`, `conditional`, `loop` |
+| Retrieval | `retriever`, `reranker` |
+| LLM | `llm`, `prompt_template`, `answer` |
+| Data | `document_loader`, `chunker`, `embedder`, `text_processor` |
+| Integration | `api_call`, `webhook`, `code_executor` |
+| Storage | `vector_store`, `cache` |
 
 ## Configuration
 
@@ -113,7 +221,7 @@ const client = new Schift({
 ## Error Handling
 
 ```typescript
-import { Schift, AuthError, QuotaError, SchiftError } from "@schift/sdk";
+import { Schift, AuthError, QuotaError, SchiftError } from "@schift-io/sdk";
 
 try {
   await client.embed({ text: "test" });

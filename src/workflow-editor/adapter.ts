@@ -6,8 +6,8 @@
  *
  * @example
  * ```tsx
- * import { Schift } from '@schift/sdk';
- * import { WorkflowEditorProvider, WorkflowEditor } from '@schift/sdk/workflow-editor';
+ * import { Schift } from '@schift-io/sdk';
+ * import { WorkflowEditorProvider, WorkflowEditor } from '@schift-io/sdk/workflow-editor';
  *
  * const schift = new Schift({ apiKey: 'sch_xxx' });
  *

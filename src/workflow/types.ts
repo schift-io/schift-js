@@ -24,6 +24,11 @@ export const BlockType = {
   FIELD_SELECTOR: "field_selector",
   HTTP_REQUEST: "http_request",
   WEBHOOK: "webhook",
+  // K-M1: Automated ingest types (matching backend)
+  WEBHOOK_SOURCE: "webhook_source",
+  INGEST_BRIDGE: "ingest_bridge",
+  FEED_POLL: "feed_poll",
+  NOTIFY: "notify",
   ANSWER: "answer",
   METADATA_EXTRACTOR: "metadata_extractor",
 } as const;
@@ -34,7 +39,9 @@ export type BlockType = (typeof BlockType)[keyof typeof BlockType];
 
 export const WorkflowStatus = {
   DRAFT: "draft",
+  /** @deprecated Use `PUBLISHED` instead. Will be removed in a future release. */
   ACTIVE: "active",
+  PUBLISHED: "published",
   ARCHIVED: "archived",
 } as const;
 
@@ -97,7 +104,9 @@ export interface Edge {
 // ---- Workflow Graph ----
 
 export interface WorkflowGraph {
+  // K-H4: Accept both "blocks" (SDK convention) and "nodes" (backend convention)
   blocks: Block[];
+  nodes?: Block[];
   edges: Edge[];
 }
 
@@ -209,6 +218,9 @@ export interface AddBlockRequest {
 export interface AddEdgeRequest {
   source: string;
   target: string;
+  // K-M4: Backend uses "out"/"in" as default handles when omitted.
+  // Explicitly set handles to match block type output/input names
+  // (e.g. "documents", "chunks", "embeddings", "prompt", "text").
   source_handle?: string;
   target_handle?: string;
 }

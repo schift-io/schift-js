@@ -9,18 +9,21 @@ import type {
   SearchResult,
   ProjectRequest,
   ProjectResponse,
-  FileUploadResponse,
   BucketUploadResult,
   ChatRequest,
   ChatResponse,
   ChatStreamEvent,
+  CatalogModel,
+  AggregateRequest,
+  AggregateResponse,
 } from "./types.js";
 import { WorkflowClient } from "./workflow/client.js";
 import type { HttpTransport } from "./workflow/client.js";
+import { SchiftTools } from "./tools.js";
 
 const DEFAULT_BASE_URL = "https://api.schift.io";
 const DEFAULT_TIMEOUT = 60_000;
-const VERSION = "0.1.0";
+const VERSION = "0.2.0";
 
 export class Schift {
   private readonly apiKey: string;
@@ -39,6 +42,20 @@ export class Schift {
   readonly workflows: WorkflowClient;
 
   /**
+   * Models sub-module — list and inspect available embedding models.
+   *
+   * @example
+   * ```ts
+   * const models = await client.models.listModels();
+   * const info = await client.models.getModel("openai/text-embedding-3-large");
+   * ```
+   */
+  readonly models: {
+    listModels(): Promise<CatalogModel[]>;
+    getModel(modelId: string): Promise<CatalogModel>;
+  };
+
+  /**
    * DB sub-module for bucket and document management.
    *
    * @example
@@ -51,6 +68,28 @@ export class Schift {
   readonly db: {
     upload(bucket: string, options: { files: File[] | Blob[] }): Promise<BucketUploadResult>;
   };
+
+  /**
+   * Tool calling helpers — plug Schift search/chat into any LLM agent.
+   *
+   * @example
+   * ```ts
+   * // OpenAI
+   * const response = await openai.chat.completions.create({
+   *   model: "gpt-4o-mini",
+   *   tools: schift.tools.openai(),
+   *   messages: [{ role: "user", content: "계약서에서 해지 조건?" }],
+   * });
+   * const result = await schift.tools.handle(response.choices[0].message.tool_calls[0]);
+   *
+   * // Claude
+   * const response = await anthropic.messages.create({
+   *   tools: schift.tools.anthropic(),
+   *   ...
+   * });
+   * ```
+   */
+  readonly tools: SchiftTools;
 
   constructor(config: SchiftConfig) {
     if (!config.apiKey?.startsWith("sch_")) {
@@ -71,10 +110,22 @@ export class Schift {
 
     this.workflows = new WorkflowClient(transport);
 
+    // models sub-module — model catalog browsing
+    this.models = {
+      listModels: () => this.get<CatalogModel[]>("/v1/catalog"),
+      getModel: (modelId: string) => this.get<CatalogModel>(`/v1/catalog/${modelId}`),
+    };
+
     // db sub-module — bind `this` so private helpers remain accessible
     this.db = {
       upload: this._dbUpload.bind(this),
     };
+
+    // Tool calling helpers
+    this.tools = new SchiftTools(
+      (req: SearchRequest) => this.search(req),
+      (req: ChatRequest) => this.chat(req),
+    );
   }
 
   // ---- Embeddings ----
@@ -85,6 +136,7 @@ export class Schift {
       text: request.text,
       model: request.model,
       dimensions: request.dimensions,
+      task_type: request.taskType,
     });
   }
 
@@ -94,16 +146,50 @@ export class Schift {
       texts: request.texts,
       model: request.model,
       dimensions: request.dimensions,
+      task_type: request.taskType,
     });
   }
 
   // ---- Search ----
 
   async search(request: SearchRequest): Promise<SearchResult[]> {
-    return this.post<SearchResult[]>("/v1/query", {
+    const body: Record<string, unknown> = {
       query: request.query,
       collection: request.collection,
       top_k: request.topK,
+    };
+    if (request.temporal) {
+      body.temporal = request.temporal;
+      if (request.temporalStart !== undefined) {
+        body.temporal_start = request.temporalStart;
+      }
+      if (request.temporalEnd !== undefined) {
+        body.temporal_end = request.temporalEnd;
+      }
+    }
+    return this.post<SearchResult[]>("/v1/query", body);
+  }
+
+  // ---- Aggregation ----
+
+  /**
+   * Aggregate metadata — group-by-count on vector metadata.
+   *
+   * @example
+   * ```ts
+   * const result = await client.aggregate({
+   *   collection: "legal-qa",
+   *   groupBy: "role",
+   * });
+   * // result.groups: [{value: "user", count: 150}, {value: "assistant", count: 148}]
+   * ```
+   */
+  async aggregate(request: AggregateRequest): Promise<AggregateResponse> {
+    return this.post<AggregateResponse>("/v1/aggregate", {
+      collection: request.collection,
+      group_by: request.groupBy,
+      filter_key: request.filterKey,
+      filter_value: request.filterValue,
     });
   }
 
@@ -256,7 +342,7 @@ export class Schift {
         method: "POST",
         headers: {
           Authorization: `Bearer ${this.apiKey}`,
-          "User-Agent": `schift-js/${VERSION}`,
+          "User-Agent": `schift-ts/${VERSION}`,
           // Do NOT set Content-Type — fetch sets it automatically with boundary
         },
         body: form,
@@ -273,6 +359,63 @@ export class Schift {
     return { bucket_id: bucketId, bucket_name: bucket, uploaded };
   }
 
+  // ---- Edges ----
+
+  /**
+   * Add edges between nodes in a bucket.
+   *
+   * @example
+   * ```ts
+   * await schift.addEdges("bucket-id", [
+   *   { source: "A", target: "B", relation: "follows" },
+   *   { source: "B", target: "C", relation: "supersedes", weight: 0.8 },
+   * ]);
+   * ```
+   */
+  async addEdges(
+    bucketId: string,
+    edges: Array<{ source: string; target: string; relation?: string; weight?: number }>,
+  ): Promise<{ count: number }> {
+    return this.post<{ count: number }>(`/v1/buckets/${bucketId}/edges`, { edges });
+  }
+
+  /**
+   * List edges for a node.
+   */
+  async listEdges(
+    bucketId: string,
+    nodeId: string,
+    options?: { direction?: "outgoing" | "incoming" | "both"; relation?: string },
+  ): Promise<{ node_id: string; direction: string; edges: Array<{ source: string; target: string; relation: string; weight: number }> }> {
+    const params = new URLSearchParams();
+    if (options?.direction) params.set("direction", options.direction);
+    if (options?.relation) params.set("relation", options.relation);
+    const qs = params.toString();
+    return this.get(`/v1/buckets/${bucketId}/edges/${nodeId}${qs ? `?${qs}` : ""}`);
+  }
+
+  /**
+   * Delete a specific edge.
+   */
+  async deleteEdge(
+    bucketId: string,
+    source: string,
+    target: string,
+    relation: string = "related_to",
+  ): Promise<void> {
+    const resp = await fetch(`${this.baseUrl}/v1/buckets/${bucketId}/edges`, {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${this.apiKey}`,
+        "Content-Type": "application/json",
+        "User-Agent": `schift-ts/${VERSION}`,
+      },
+      body: JSON.stringify({ source, target, relation }),
+      signal: AbortSignal.timeout(this.timeout),
+    });
+    if (!resp.ok) await this.throwError(resp);
+  }
+
   // ---- Collections ----
 
   async listCollections(): Promise<any[]> {
@@ -287,39 +430,160 @@ export class Schift {
     await this.del(`/v1/collections/${collectionId}`);
   }
 
-  // ---- Files ----
-
-  /**
-   * @deprecated Not yet available on the server.
-   */
-  async uploadFile(
-    _file: Blob,
-    _filename: string,
-  ): Promise<FileUploadResponse> {
-    throw new SchiftError(
-      "uploadFile() is not yet available on the server.",
-      501,
-    );
+  // ---- Rerank ----
+  async rerank(request: { query: string; documents: Array<{ id?: string; text: string }>; topK?: number; model?: string }): Promise<any> {
+    return this.post("/v1/rerank", { query: request.query, documents: request.documents, top_k: request.topK ?? 5, model: request.model });
   }
 
-  /**
-   * @deprecated Not yet available on the server.
-   */
-  async getFile(_fileId: string): Promise<FileUploadResponse> {
-    throw new SchiftError(
-      "getFile() is not yet available on the server.",
-      501,
-    );
+  // ---- Collections (extended) ----
+  async createCollection(request: { name: string; dimension: number; model?: string; backend?: string }): Promise<any> {
+    return this.post("/v1/collections", request as unknown as Record<string, unknown>);
+  }
+  async collectionStats(collectionId: string): Promise<any> {
+    return this.get(`/v1/collections/${collectionId}/stats`);
+  }
+  async upsertVectors(collection: string, vectors: any[]): Promise<any> {
+    return this.post(`/v1/collections/${collection}/vectors`, { vectors });
+  }
+  async deleteVectors(collection: string, ids: string[]): Promise<any> {
+    const res = await fetch(`${this.baseUrl}/v1/collections/${collection}/vectors`, { method: "DELETE", headers: this.headers(), body: JSON.stringify({ ids }) });
+    if (!res.ok) throw new Error(`Schift API error: ${res.status}`);
+    return res.json();
+  }
+  async upsertDocuments(collection: string, documents: any[], model: string): Promise<any> {
+    return this.post(`/v1/collections/${collection}/documents`, { documents, model });
+  }
+  async collectionAdd(collection: string, request: { documents: string[]; ids?: string[]; metadata?: any[]; task?: string; model?: string }): Promise<any> {
+    return this.post(`/v1/collections/${collection}/add`, request as unknown as Record<string, unknown>);
+  }
+  async collectionSearch(collection: string, request: { query: string; topK?: number; filter?: any; task?: string; model?: string; mode?: string; rerank?: boolean }): Promise<any> {
+    return this.post(`/v1/collections/${collection}/search`, { query: request.query, top_k: request.topK ?? 10, filter: request.filter, task: request.task, model: request.model, mode: request.mode ?? "hybrid", rerank: request.rerank });
   }
 
-  /**
-   * @deprecated Not yet available on the server.
-   */
-  async deleteFile(_fileId: string): Promise<void> {
-    throw new SchiftError(
-      "deleteFile() is not yet available on the server.",
-      501,
-    );
+  // ---- Buckets ----
+  async listBuckets(): Promise<any[]> {
+    return this.get("/v1/buckets");
+  }
+  async createBucket(request: { name: string; description?: string }): Promise<any> {
+    return this.post("/v1/buckets", request as unknown as Record<string, unknown>);
+  }
+  async deleteBucket(bucketId: string): Promise<void> {
+    const res = await fetch(`${this.baseUrl}/v1/buckets/${bucketId}`, { method: "DELETE", headers: this.headers() });
+    if (!res.ok) throw new Error(`Schift API error: ${res.status}`);
+  }
+  async bucketSearch(bucketId: string, request: { query: string; topK?: number; mode?: string; rerank?: boolean; model?: string }): Promise<any> {
+    return this.post(`/v1/buckets/${bucketId}/search`, { query: request.query, top_k: request.topK ?? 10, mode: request.mode ?? "hybrid", rerank: request.rerank, model: request.model });
+  }
+  async bucketGraph(bucketId: string, query?: string, topK?: number): Promise<any> {
+    const params = new URLSearchParams();
+    if (query) params.set("query", query);
+    if (topK) params.set("top_k", String(topK));
+    const qs = params.toString();
+    return this.get(`/v1/buckets/${bucketId}/graph${qs ? `?${qs}` : ""}`);
+  }
+
+  // ---- Routing ----
+  async getRouting(): Promise<any> {
+    return this.get("/v1/routing");
+  }
+  async setRouting(request: { primary?: string; fallback?: string; mode?: string }): Promise<any> {
+    return this.put("/v1/routing", request as Record<string, unknown>);
+  }
+
+  // ---- Usage ----
+  async usage(): Promise<any> {
+    return this.get("/v1/usage/me");
+  }
+  async usageSummary(): Promise<any> {
+    return this.get("/v1/usage/summary");
+  }
+
+  // ---- Jobs ----
+  async getJob(jobId: string): Promise<any> {
+    return this.get(`/v1/jobs/${jobId}`);
+  }
+  async listJobs(options?: { orgId?: string; bucketId?: string; status?: string; limit?: number }): Promise<any[]> {
+    const params = new URLSearchParams();
+    if (options?.orgId) params.set("org_id", options.orgId);
+    if (options?.bucketId) params.set("bucket_id", options.bucketId);
+    if (options?.status) params.set("status", options.status);
+    if (options?.limit) params.set("limit", String(options.limit));
+    const qs = params.toString();
+    return this.get(`/v1/jobs${qs ? `?${qs}` : ""}`);
+  }
+  async cancelJob(jobId: string): Promise<any> {
+    return this.post(`/v1/jobs/${jobId}/cancel`, {});
+  }
+  async reprocessJob(jobId: string): Promise<any> {
+    return this.post(`/v1/jobs/${jobId}/reprocess`, {});
+  }
+
+  // ---- Chat Completions ----
+  async chatCompletion(request: { model: string; messages: Array<{ role: string; content: string }>; temperature?: number; maxTokens?: number; topP?: number; stream?: boolean; stop?: string[] }): Promise<any> {
+    return this.post("/v1/chat/completions", { model: request.model, messages: request.messages, temperature: request.temperature, max_tokens: request.maxTokens, top_p: request.topP, stream: request.stream, stop: request.stop });
+  }
+  async listModels(): Promise<any[]> {
+    return this.get("/v1/models");
+  }
+
+  // ---- Tasks ----
+  async similarity(request: { textA: string; textB: string; model?: string }): Promise<{ score: number }> {
+    return this.post("/v1/similarity", { text_a: request.textA, text_b: request.textB, model: request.model });
+  }
+  async cluster(request: { texts: string[]; nClusters?: number; model?: string }): Promise<{ labels: number[]; centroids: number[][]; n_clusters: number }> {
+    return this.post("/v1/cluster", { texts: request.texts, n_clusters: request.nClusters ?? 5, model: request.model });
+  }
+  async classify(request: { text: string; labels: string[]; model?: string }): Promise<{ label: string; scores: Record<string, number> }> {
+    return this.post("/v1/classify", { text: request.text, labels: request.labels, model: request.model });
+  }
+
+  // ---- Artifacts ----
+  async createArtifact(request: { kind: string; uri: string; checksum?: string; dims?: number; contentType?: string; label?: string }): Promise<any> {
+    return this.post("/v1/artifacts", { kind: request.kind, uri: request.uri, checksum: request.checksum, dims: request.dims, content_type: request.contentType, label: request.label });
+  }
+  async listArtifacts(kind?: string): Promise<any[]> {
+    const qs = kind ? `?kind=${encodeURIComponent(kind)}` : "";
+    return this.get(`/v1/artifacts${qs}`);
+  }
+  async getArtifact(artifactId: string): Promise<any> {
+    return this.get(`/v1/artifacts/${artifactId}`);
+  }
+
+  // ---- Benchmark Suites ----
+  async createBenchmarkSuite(request: { name: string; sourceModel: string; targetModel: string; sampleRatios?: number[]; queryCount?: number; corpusCount?: number }): Promise<any> {
+    return this.post("/v1/benchmark-suites", { name: request.name, source_model: request.sourceModel, target_model: request.targetModel, sample_ratios: request.sampleRatios, query_count: request.queryCount, corpus_count: request.corpusCount });
+  }
+  async listBenchmarkSuites(): Promise<any[]> {
+    return this.get("/v1/benchmark-suites");
+  }
+  async getBenchmarkSuite(suiteId: string): Promise<any> {
+    return this.get(`/v1/benchmark-suites/${suiteId}`);
+  }
+  async listBenchmarkRuns(suiteId: string): Promise<any[]> {
+    return this.get(`/v1/benchmark-suites/${suiteId}/runs`);
+  }
+  async getBenchmarkRun(runId: string): Promise<any> {
+    return this.get(`/v1/benchmark-runs/${runId}`);
+  }
+
+  // ---- Drift Monitors ----
+  async createDriftMonitor(request: { name: string; suiteId: string; cadence?: string; minRecoveryR10?: number }): Promise<any> {
+    return this.post("/v1/drift-monitors", { name: request.name, suite_id: request.suiteId, cadence: request.cadence, min_recovery_r10: request.minRecoveryR10 });
+  }
+  async listDriftMonitors(): Promise<any[]> {
+    return this.get("/v1/drift-monitors");
+  }
+  async getDriftMonitor(monitorId: string): Promise<any> {
+    return this.get(`/v1/drift-monitors/${monitorId}`);
+  }
+  async listDriftRuns(monitorId: string): Promise<any[]> {
+    return this.get(`/v1/drift-monitors/${monitorId}/runs`);
+  }
+  async getDriftRun(driftRunId: string): Promise<any> {
+    return this.get(`/v1/drift-runs/${driftRunId}`);
+  }
+  async dueMonitors(): Promise<any[]> {
+    return this.get("/v1/drift-monitor-due");
   }
 
   // ---- HTTP layer ----
@@ -330,7 +594,7 @@ export class Schift {
       headers: {
         Authorization: `Bearer ${this.apiKey}`,
         "Content-Type": "application/json",
-        "User-Agent": `schift-js/${VERSION}`,
+        "User-Agent": `schift-ts/${VERSION}`,
       },
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(this.timeout),
@@ -343,7 +607,7 @@ export class Schift {
       method: "GET",
       headers: {
         Authorization: `Bearer ${this.apiKey}`,
-        "User-Agent": `schift-js/${VERSION}`,
+        "User-Agent": `schift-ts/${VERSION}`,
       },
       signal: AbortSignal.timeout(this.timeout),
     });
@@ -356,12 +620,34 @@ export class Schift {
       headers: {
         Authorization: `Bearer ${this.apiKey}`,
         "Content-Type": "application/json",
-        "User-Agent": `schift-js/${VERSION}`,
+        "User-Agent": `schift-ts/${VERSION}`,
       },
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(this.timeout),
     });
     return this.handleResponse(resp);
+  }
+
+  private async put<T>(path: string, body: Record<string, unknown>): Promise<T> {
+    const resp = await fetch(`${this.baseUrl}${path}`, {
+      method: "PUT",
+      headers: {
+        Authorization: `Bearer ${this.apiKey}`,
+        "Content-Type": "application/json",
+        "User-Agent": `schift-ts/${VERSION}`,
+      },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(this.timeout),
+    });
+    return this.handleResponse(resp);
+  }
+
+  private headers(): Record<string, string> {
+    return {
+      Authorization: `Bearer ${this.apiKey}`,
+      "Content-Type": "application/json",
+      "User-Agent": `schift-ts/${VERSION}`,
+    };
   }
 
   private async del(path: string): Promise<void> {
@@ -373,7 +659,7 @@ export class Schift {
       method,
       headers: {
         Authorization: `Bearer ${this.apiKey}`,
-        "User-Agent": `schift-js/${VERSION}`,
+        "User-Agent": `schift-ts/${VERSION}`,
       },
       signal: AbortSignal.timeout(this.timeout),
     });
