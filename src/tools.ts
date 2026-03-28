@@ -44,6 +44,7 @@
  */
 
 import type { SearchRequest, SearchResult, ChatRequest, ChatResponse } from "./types.js";
+import type { WebSearchResultItem } from "./agent/types.js";
 
 // ---- Tool definitions per provider ----
 
@@ -55,6 +56,10 @@ interface SchiftToolsConfig {
   topK?: number;
   /** Include RAG chat tool alongside search. Default false. */
   includeChat?: boolean;
+  /** Include web search tool. Default false. */
+  includeWebSearch?: boolean;
+  /** Max web search results. Default 5. */
+  webSearchMaxResults?: number;
   /** Custom tool name prefix. Default "schift". */
   prefix?: string;
 }
@@ -67,26 +72,37 @@ interface ToolCallInput {
   input?: Record<string, unknown>;
 }
 
+interface WebSearchRequest {
+  query: string;
+  maxResults?: number;
+}
+
 type SearchFn = (req: SearchRequest) => Promise<SearchResult[]>;
 type ChatFn = (req: ChatRequest) => Promise<ChatResponse>;
+type WebSearchFn = (req: WebSearchRequest) => Promise<WebSearchResultItem[]>;
 
 export class SchiftTools {
   private readonly searchFn: SearchFn;
   private readonly chatFn: ChatFn;
+  private readonly webSearchFn: WebSearchFn | null;
   private readonly config: Required<SchiftToolsConfig>;
 
   constructor(
     searchFn: SearchFn,
     chatFn: ChatFn,
     config: SchiftToolsConfig = {},
+    webSearchFn?: WebSearchFn,
   ) {
     this.searchFn = searchFn;
     this.chatFn = chatFn;
+    this.webSearchFn = webSearchFn ?? null;
     this.config = {
       collection: config.collection ?? "",
       bucketId: config.bucketId ?? "",
       topK: config.topK ?? 5,
       includeChat: config.includeChat ?? false,
+      includeWebSearch: config.includeWebSearch ?? false,
+      webSearchMaxResults: config.webSearchMaxResults ?? 5,
       prefix: config.prefix ?? "schift",
     };
   }
@@ -154,6 +170,31 @@ export class SchiftTools {
       });
     }
 
+    if (this.config.includeWebSearch) {
+      tools.push({
+        type: "function",
+        function: {
+          name: `${this.config.prefix}_web_search`,
+          description:
+            "Search the web for real-time information. Returns titles, URLs, and snippets from relevant web pages.",
+          parameters: {
+            type: "object",
+            properties: {
+              query: {
+                type: "string",
+                description: "The web search query",
+              },
+              max_results: {
+                type: "number",
+                description: "Number of results to return (default 5)",
+              },
+            },
+            required: ["query"],
+          },
+        },
+      });
+    }
+
     return tools;
   }
 
@@ -208,6 +249,28 @@ export class SchiftTools {
       });
     }
 
+    if (this.config.includeWebSearch) {
+      tools.push({
+        name: `${this.config.prefix}_web_search`,
+        description:
+          "Search the web for real-time information. Returns titles, URLs, and snippets from relevant web pages.",
+        input_schema: {
+          type: "object",
+          properties: {
+            query: {
+              type: "string",
+              description: "The web search query",
+            },
+            max_results: {
+              type: "number",
+              description: "Number of results to return (default 5)",
+            },
+          },
+          required: ["query"],
+        },
+      });
+    }
+
     return tools;
   }
 
@@ -247,6 +310,24 @@ export class SchiftTools {
         },
         execute: async (args: Record<string, unknown>) => {
           return this._execChat(args);
+        },
+      };
+    }
+
+    if (this.config.includeWebSearch) {
+      tools[`${this.config.prefix}_web_search`] = {
+        description:
+          "Search the web for real-time information. Returns titles, URLs, and snippets.",
+        parameters: {
+          type: "object",
+          properties: {
+            query: { type: "string", description: "Web search query" },
+            max_results: { type: "number", description: "Number of results" },
+          },
+          required: ["query"],
+        },
+        execute: async (args: Record<string, unknown>) => {
+          return this._execWebSearch(args);
         },
       };
     }
@@ -294,6 +375,11 @@ export class SchiftTools {
       return JSON.stringify(result);
     }
 
+    if (name === `${this.config.prefix}_web_search`) {
+      const results = await this._execWebSearch(args);
+      return JSON.stringify(results);
+    }
+
     throw new Error(`Unknown tool: ${name}`);
   }
 
@@ -316,6 +402,18 @@ export class SchiftTools {
     return this.chatFn({
       bucketId: (args.bucket_id as string) || this.config.bucketId,
       message: args.message as string,
+    });
+  }
+
+  private async _execWebSearch(
+    args: Record<string, unknown>,
+  ): Promise<WebSearchResultItem[]> {
+    if (!this.webSearchFn) {
+      throw new Error("WebSearch function not configured. Pass webSearchFn to SchiftTools constructor.");
+    }
+    return this.webSearchFn({
+      query: args.query as string,
+      maxResults: (args.max_results as number) || this.config.webSearchMaxResults,
     });
   }
 }

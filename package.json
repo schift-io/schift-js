@@ -1,7 +1,7 @@
 {
   "name": "@schift-io/sdk",
-  "version": "0.3.0",
-  "description": "Schift — Multimodal Embedding API & Model Routing SDK",
+  "version": "0.3.1",
+  "description": "Schift — AI Agent Framework with Built-in RAG",
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
@@ -30,17 +30,18 @@
     "prepublishOnly": "npm run build"
   },
   "keywords": [
+    "agent",
+    "ai-agent",
+    "rag",
+    "tool-calling",
+    "framework",
+    "typescript",
     "embedding",
-    "multimodal",
     "vector",
-    "ai",
-    "openai",
-    "gemini",
-    "model-routing",
     "search"
   ],
   "author": "Schift <hello@schift.io>",
-  "license": "Apache-2.0",
+  "license": "MIT",
   "homepage": "https://schift.io",
   "repository": {
     "type": "git",

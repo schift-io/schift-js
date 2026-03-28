@@ -89,3 +89,39 @@ export {
   unregisterCustomNode,
   getNodeHandler,
 } from "./workflow/index.js";
+
+// ---- Agent Framework ----
+export {
+  Agent,
+  RAG,
+  WebSearch,
+  DeepResearch,
+  ToolRegistry,
+  AgentRuntime,
+  ConversationMemory,
+  AgentError,
+  ToolError,
+  MaxStepsError,
+  WebSearchProvider,
+  OpenAIModel,
+  GeminiModel,
+  ClaudeModel,
+} from "./agent/index.js";
+export type {
+  AgentOptions,
+  LLMCallFn,
+  AgentConfig,
+  AgentTool,
+  AgentStep,
+  AgentRunResult,
+  ToolResult,
+  JSONSchema,
+  ChatMessage,
+  MemoryConfig,
+  RAGConfig,
+  WebSearchConfig,
+  WebSearchResultItem,
+  DeepResearchConfig,
+  ResearchReport,
+  ModelId,
+} from "./agent/index.js";

@@ -303,8 +303,8 @@ export default function WorkflowBuilder({ onBack, initialWorkflowId }: WorkflowB
       // Update block statuses from run result
       const statuses = new Map<string, BlockStatus>();
       if (result.block_states) {
-        for (const bs of result.block_states) {
-          statuses.set(bs.block_id, bs.status === "completed" ? "completed" : bs.status === "failed" ? "failed" : "completed");
+        for (const [blockId, bs] of Object.entries(result.block_states)) {
+          statuses.set(blockId, bs.status === "completed" ? "completed" : bs.status === "failed" ? "failed" : "completed");
         }
       }
       // Blocks not in block_states → completed (simple run without per-block tracking)

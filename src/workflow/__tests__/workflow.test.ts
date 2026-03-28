@@ -56,7 +56,7 @@ const STUB_RUN: WorkflowRun = {
   workflow_id: "wf_123",
   status: "running",
   inputs: { query: "hello" },
-  block_states: [],
+  block_states: {},
   started_at: "2026-01-01T00:00:01Z",
 };
 
@@ -439,9 +439,9 @@ describe("WorkflowClient", () => {
 // =====================================================================
 
 describe("Type constants", () => {
-  it("BlockType has all 29 block types", () => {
+  it("BlockType has all 30 block types", () => {
     const types = Object.values(BlockType);
-    expect(types).toHaveLength(29);
+    expect(types).toHaveLength(30);
     expect(types).toContain("start");
     expect(types).toContain("end");
     expect(types).toContain("document_loader");

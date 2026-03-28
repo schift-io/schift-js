@@ -12,13 +12,18 @@ const mockChat = vi.fn().mockResolvedValue({
   model: "gpt-4o-mini",
 });
 
+const mockWebSearch = vi.fn().mockResolvedValue([
+  { title: "Result 1", url: "https://example.com/1", snippet: "First result" },
+  { title: "Result 2", url: "https://example.com/2", snippet: "Second result" },
+]);
+
 function createTools(opts = {}) {
   return new SchiftTools(mockSearch, mockChat, {
     collection: "contracts",
     bucketId: "my-bucket",
     includeChat: true,
     ...opts,
-  });
+  }, mockWebSearch);
 }
 
 describe("SchiftTools", () => {
@@ -41,8 +46,22 @@ describe("SchiftTools", () => {
     });
 
     it("excludes chat tool when includeChat=false", () => {
-      const tools = createTools({ includeChat: false }).openai();
+      const tools = createTools({ includeChat: false, includeWebSearch: false }).openai();
       expect(tools.length).toBe(1);
+    });
+
+    it("includes web_search tool when includeWebSearch=true", () => {
+      const tools = createTools({ includeWebSearch: true }).openai();
+      const wsIdx = tools.findIndex((t: any) => t.function?.name === "schift_web_search");
+      expect(wsIdx).toBeGreaterThanOrEqual(0);
+      const ws = (tools[wsIdx] as any).function;
+      expect(ws.parameters.required).toContain("query");
+    });
+
+    it("excludes web_search tool when includeWebSearch=false", () => {
+      const tools = createTools({ includeWebSearch: false }).openai();
+      const names = tools.map((t: any) => t.function?.name);
+      expect(names).not.toContain("schift_web_search");
     });
 
     it("uses custom prefix", () => {
@@ -59,6 +78,13 @@ describe("SchiftTools", () => {
       const search = tools[0] as any;
       expect(search.name).toBe("schift_search");
       expect(search.input_schema.properties.query).toBeDefined();
+    });
+
+    it("includes web_search tool when enabled", () => {
+      const tools = createTools({ includeWebSearch: true }).anthropic();
+      const ws = tools.find((t: any) => t.name === "schift_web_search") as any;
+      expect(ws).toBeDefined();
+      expect(ws.input_schema.properties.query).toBeDefined();
     });
   });
 
@@ -148,6 +174,36 @@ describe("SchiftTools", () => {
       expect(mockSearch).toHaveBeenCalledWith(
         expect.objectContaining({ collection: "legal-docs" }),
       );
+    });
+
+    it("handles web_search tool call", async () => {
+      mockWebSearch.mockClear();
+      const tools = createTools({ includeWebSearch: true });
+      const result = await tools.handle({
+        function: {
+          name: "schift_web_search",
+          arguments: JSON.stringify({ query: "AI regulations" }),
+        },
+      });
+      expect(mockWebSearch).toHaveBeenCalledWith({
+        query: "AI regulations",
+        maxResults: 5,
+      });
+      const parsed = JSON.parse(result);
+      expect(parsed).toHaveLength(2);
+      expect(parsed[0].title).toBe("Result 1");
+    });
+
+    it("throws when webSearchFn is null", async () => {
+      const tools = new SchiftTools(mockSearch, mockChat, { includeWebSearch: true });
+      await expect(
+        tools.handle({
+          function: {
+            name: "schift_web_search",
+            arguments: JSON.stringify({ query: "test" }),
+          },
+        }),
+      ).rejects.toThrow("not configured");
     });
   });
 });

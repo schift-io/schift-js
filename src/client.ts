@@ -23,7 +23,7 @@ import { SchiftTools } from "./tools.js";
 
 const DEFAULT_BASE_URL = "https://api.schift.io";
 const DEFAULT_TIMEOUT = 60_000;
-const VERSION = "0.2.0";
+const VERSION = "0.3.1";
 
 export class Schift {
   private readonly apiKey: string;
@@ -91,6 +91,18 @@ export class Schift {
    */
   readonly tools: SchiftTools;
 
+  /**
+   * HTTP transport for agent/RAG use.
+   *
+   * @example
+   * ```ts
+   * const schift = new Schift({ apiKey: 'sch_...' });
+   * const rag = new RAG({ bucket: 'docs' }, schift.transport);
+   * const agent = new Agent({ ..., transport: schift.transport });
+   * ```
+   */
+  readonly transport: HttpTransport;
+
   constructor(config: SchiftConfig) {
     if (!config.apiKey?.startsWith("sch_")) {
       throw new SchiftError("Invalid API key. Keys start with 'sch_'");
@@ -99,7 +111,7 @@ export class Schift {
     this.baseUrl = (config.baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, "");
     this.timeout = config.timeout ?? DEFAULT_TIMEOUT;
 
-    const transport: HttpTransport = {
+    this.transport = {
       get: <T>(path: string) => this.get<T>(path),
       post: <T>(path: string, body: Record<string, unknown>) =>
         this.post<T>(path, body),
@@ -108,7 +120,7 @@ export class Schift {
       delete: (path: string) => this.del(path),
     };
 
-    this.workflows = new WorkflowClient(transport);
+    this.workflows = new WorkflowClient(this.transport);
 
     // models sub-module — model catalog browsing
     this.models = {
@@ -121,10 +133,12 @@ export class Schift {
       upload: this._dbUpload.bind(this),
     };
 
-    // Tool calling helpers
+    // Tool calling helpers (web search auto-enabled)
     this.tools = new SchiftTools(
       (req: SearchRequest) => this.search(req),
       (req: ChatRequest) => this.chat(req),
+      { includeWebSearch: true },
+      (req) => this.webSearch(req.query, req.maxResults),
     );
   }
 
@@ -289,6 +303,28 @@ export class Schift {
         }
       }
     }
+  }
+
+  // ---- Web Search ----
+
+  /**
+   * Web search powered by Schift Cloud.
+   *
+   * @example
+   * ```ts
+   * const results = await client.webSearch("latest AI regulations 2026");
+   * results.forEach(r => console.log(r.title, r.url));
+   * ```
+   */
+  async webSearch(
+    query: string,
+    maxResults?: number,
+  ): Promise<Array<{ title: string; url: string; snippet: string }>> {
+    const resp = await this.post<{ results: Array<{ title: string; url: string; snippet: string }> }>(
+      "/v1/web-search",
+      { query, max_results: maxResults ?? 5 },
+    );
+    return resp.results;
   }
 
   // ---- Model Routing (Projection) ----

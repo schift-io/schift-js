@@ -14,6 +14,8 @@ import type {
   ListWorkflowsResponse,
   ListBlockTypesResponse,
   ListTemplatesResponse,
+  RunLogsResponse,
+  AsyncRunResponse,
 } from "./types.js";
 import type { WorkflowDefinition } from "./yaml.js";
 import {
@@ -185,6 +187,37 @@ export class WorkflowClient {
   }
 
   /**
+   * Execute a workflow asynchronously. Returns a run_id immediately;
+   * poll with `getRun()` or `getRunLogs()` to track progress.
+   */
+  async runAsync(
+    workflowId: string,
+    inputs?: Record<string, unknown>,
+  ): Promise<AsyncRunResponse> {
+    const body: RunWorkflowRequest = { inputs };
+    return this.http.post<AsyncRunResponse>(
+      `${BASE}/${workflowId}/run?mode=async`,
+      toBody(body),
+    );
+  }
+
+  /**
+   * Get per-block execution logs for a run.
+   *
+   * @param afterSeq - Only return logs with `seq > afterSeq` (for polling).
+   */
+  async getRunLogs(
+    workflowId: string,
+    runId: string,
+    afterSeq = 0,
+  ): Promise<RunLogsResponse> {
+    const qs = afterSeq > 0 ? `?after_seq=${afterSeq}` : "";
+    return this.http.get<RunLogsResponse>(
+      `${BASE}/${workflowId}/runs/${runId}/logs${qs}`,
+    );
+  }
+
+  /**
    * Validate a workflow graph (checks for cycles, missing connections, etc.).
    */
   async validate(workflowId: string): Promise<ValidationResult> {
@@ -200,20 +233,20 @@ export class WorkflowClient {
    * List all available block types with their schemas.
    */
   async getBlockTypes(): Promise<BlockTypeInfo[]> {
-    const resp = await this.http.get<ListBlockTypesResponse>(
+    const resp = await this.http.get<BlockTypeInfo[] | ListBlockTypesResponse>(
       `${BASE}/meta/block-types`,
     );
-    return resp.block_types;
+    return Array.isArray(resp) ? resp : resp.block_types;
   }
 
   /**
    * List available workflow templates.
    */
   async getTemplates(): Promise<TemplateInfo[]> {
-    const resp = await this.http.get<ListTemplatesResponse>(
+    const resp = await this.http.get<TemplateInfo[] | ListTemplatesResponse>(
       `${BASE}/meta/templates`,
     );
-    return resp.templates;
+    return Array.isArray(resp) ? resp : resp.templates;
   }
 
   // ---- YAML Import / Export ----

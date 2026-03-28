@@ -31,6 +31,7 @@ export const BlockType = {
   NOTIFY: "notify",
   ANSWER: "answer",
   METADATA_EXTRACTOR: "metadata_extractor",
+  WEB_SEARCH: "web_search",
 } as const;
 
 export type BlockType = (typeof BlockType)[keyof typeof BlockType];
@@ -136,12 +137,10 @@ export type BlockRunStatus =
   (typeof BlockRunStatus)[keyof typeof BlockRunStatus];
 
 export interface BlockRunState {
-  block_id: string;
   status: BlockRunStatus;
-  output?: unknown;
+  duration_ms?: number;
   error?: string;
-  started_at?: string;
-  finished_at?: string;
+  outputs?: Record<string, unknown>;
 }
 
 // ---- Workflow Run ----
@@ -149,13 +148,15 @@ export interface BlockRunState {
 export interface WorkflowRun {
   id: string;
   workflow_id: string;
+  org_id?: string;
   status: RunStatus;
-  inputs: Record<string, unknown>;
+  inputs?: Record<string, unknown>;
   outputs?: Record<string, unknown>;
-  block_states: BlockRunState[];
+  block_states: Record<string, BlockRunState>;
   error?: string;
   started_at: string;
   finished_at?: string;
+  created_at?: string;
 }
 
 // ---- Block Type Info (from /meta/block-types) ----
@@ -227,6 +228,32 @@ export interface AddEdgeRequest {
 
 export interface RunWorkflowRequest {
   inputs?: Record<string, unknown>;
+}
+
+// ---- Run Log Entry (from /runs/{run_id}/logs) ----
+
+export interface RunLogEntry {
+  id: number;
+  run_id: string;
+  seq: number;
+  block_id: string;
+  block_type: string;
+  event: "started" | "completed" | "failed" | "skipped" | "timeout";
+  duration_ms?: number;
+  error?: string;
+  created_at: string;
+}
+
+export interface RunLogsResponse {
+  run_id: string;
+  status: RunStatus;
+  logs: RunLogEntry[];
+}
+
+export interface AsyncRunResponse {
+  id: string;
+  workflow_id: string;
+  status: "pending";
 }
 
 // ---- Response Types ----

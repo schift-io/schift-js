@@ -30,6 +30,9 @@ export type {
   ListWorkflowsResponse,
   ListBlockTypesResponse,
   ListTemplatesResponse,
+  RunLogEntry,
+  RunLogsResponse,
+  AsyncRunResponse,
 } from "./types.js";
 
 // ---- YAML Serialization ----
