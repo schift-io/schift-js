@@ -87,9 +87,17 @@ export interface EmbedBatchResponse {
 export type TemporalType = "before" | "after" | "between" | "as_of" | "latest";
 
 export interface SearchRequest {
-  query: string;
+  query?: string;
+  queryVector?: number[];
   collection: string;
   topK?: number;
+  model?: string;
+  filter?: Record<string, unknown>;
+  mode?: "vector" | "hybrid";
+  rerank?: boolean;
+  rerankTopK?: number;
+  rerankModel?: string;
+  task?: TaskType;
   modalities?: Modality[];
   /** Temporal constraint type for time-range filtering on event_time. */
   temporal?: TemporalType;

@@ -171,6 +171,14 @@ export class Schift {
       query: request.query,
       top_k: request.topK,
     };
+    if (request.queryVector) body.query_vector = request.queryVector;
+    if (request.model) body.model = request.model;
+    if (request.filter) body.filter = request.filter;
+    if (request.mode) body.mode = request.mode;
+    if (request.rerank !== undefined) body.rerank = request.rerank;
+    if (request.rerankTopK) body.rerank_top_k = request.rerankTopK;
+    if (request.rerankModel) body.rerank_model = request.rerankModel;
+    if (request.task) body.task = request.task;
     if (request.temporal) {
       body.temporal = request.temporal;
       if (request.temporalStart !== undefined) {
