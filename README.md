@@ -1,6 +1,6 @@
 # @schift-io/sdk
 
-Schift TypeScript SDK — Multimodal Embedding API & Model Routing.
+Schift TypeScript SDK for embeddings, vector search, RAG chat, and workflows.
 
 ## Install
 
@@ -71,6 +71,31 @@ const results = await client.search({
 });
 // results: Array<{ id, score, modality, metadata? }>
 ```
+
+### Web Search
+
+```typescript
+// Schift Cloud web search
+const results = await client.webSearch("latest AI regulations 2026", 5);
+results.forEach((r) => {
+  console.log(r.title, r.url);
+});
+```
+
+```typescript
+// BYOK provider for direct web search
+import { WebSearch } from "@schift-io/sdk";
+
+const webSearch = new WebSearch({
+  provider: "tavily",
+  providerApiKey: process.env.TAVILY_API_KEY!,
+  maxResults: 5,
+});
+
+const fresh = await webSearch.search("Schift framework launch updates");
+```
+
+Tool calling helpers created from `client.tools` include `schift_web_search` by default, so OpenAI/Claude/Vercel AI SDK integrations can call live web search without extra wiring.
 
 ### Collections
 
@@ -205,6 +230,7 @@ const templates = await client.workflows.getTemplates();
 | Retrieval | `retriever`, `reranker` |
 | LLM | `llm`, `prompt_template`, `answer` |
 | Data | `document_loader`, `chunker`, `embedder`, `text_processor` |
+| Web | `web_search` |
 | Integration | `api_call`, `webhook`, `code_executor` |
 | Storage | `vector_store`, `cache` |
 

@@ -10,11 +10,18 @@ interface Transport {
  * WebSearch -- real-time web search for AI agents.
  *
  * Supports two modes:
- * - **Schift Cloud** (default): proxied through `/v1/web-search`, billed on Execution axis
- * - **BYOK**: call Tavily/Serper/Brave directly with your own API key (no Execution charge)
+ * - **Schift Cloud** (default): proxied through `/v1/web-search`, billed on the web search usage axis
+ * - **BYOK**: call Tavily/Serper/Brave directly with your own API key
  *
- * @experimental The Schift Cloud `/v1/web-search` endpoint is not yet available.
- * Use BYOK providers (tavily, serper, brave) until the endpoint ships.
+ * Use Schift Cloud when you want one API key and unified billing. Use BYOK when
+ * you want to route web search directly to Tavily, Serper, or Brave.
+ *
+ * @example Schift Cloud
+ * ```ts
+ * const schift = new Schift({ apiKey: "sch_xxx" });
+ * const webSearch = new WebSearch({ provider: "schift" }, schift.transport);
+ * const results = await webSearch.search("latest AI regulations 2026");
+ * ```
  *
  * @example BYOK (Tavily)
  * ```ts
@@ -23,11 +30,6 @@ interface Transport {
  *   providerApiKey: "tvly-xxx",
  * });
  * const results = await webSearch.search("latest AI regulations 2026");
- * ```
- *
- * @example Schift Cloud (when available)
- * ```ts
- * const webSearch = new WebSearch({ provider: "schift" }, schift.transport);
  * ```
  *
  * @example As agent tool

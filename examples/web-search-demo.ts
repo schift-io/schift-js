@@ -1,23 +1,34 @@
 /**
- * Web Search BYOK demo — Tavily direct call
+ * Web Search demo.
  *
  * Usage:
+ *   SCHIFT_API_KEY=sch_xxx npx tsx examples/web-search-demo.ts
  *   TAVILY_API_KEY=tvly-xxx npx tsx examples/web-search-demo.ts
  */
 
+import { Schift } from "../src/client.js";
 import { WebSearch } from "../src/agent/web-search.js";
 
-const apiKey = process.env.TAVILY_API_KEY;
-if (!apiKey) {
-  console.error("TAVILY_API_KEY not set");
+const schiftApiKey = process.env.SCHIFT_API_KEY;
+const tavilyApiKey = process.env.TAVILY_API_KEY;
+
+const ws = schiftApiKey
+  ? new WebSearch(
+      { provider: "schift", maxResults: 3 },
+      new Schift({ apiKey: schiftApiKey }).transport,
+    )
+  : tavilyApiKey
+    ? new WebSearch({
+        provider: "tavily",
+        providerApiKey: tavilyApiKey,
+        maxResults: 3,
+      })
+    : null;
+
+if (!ws) {
+  console.error("Set SCHIFT_API_KEY for Schift Cloud or TAVILY_API_KEY for BYOK demo");
   process.exit(1);
 }
-
-const ws = new WebSearch({
-  provider: "tavily",
-  providerApiKey: apiKey,
-  maxResults: 3,
-});
 
 // 1) Direct search
 console.log("--- Direct search ---");

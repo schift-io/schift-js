@@ -34,14 +34,14 @@ export interface CatalogModel {
 }
 
 export type TaskType =
-  | "RETRIEVAL_DOCUMENT"
-  | "RETRIEVAL_QUERY"
-  | "SEMANTIC_SIMILARITY"
-  | "CLASSIFICATION"
-  | "CLUSTERING"
-  | "QUESTION_ANSWERING"
-  | "FACT_VERIFICATION"
-  | "CODE_RETRIEVAL";
+  | "retrieval_document"
+  | "retrieval_query"
+  | "semantic_similarity"
+  | "classification"
+  | "clustering"
+  | "question_answering"
+  | "fact_verification"
+  | "code_retrieval";
 
 export interface SchiftConfig {
   apiKey: string;
