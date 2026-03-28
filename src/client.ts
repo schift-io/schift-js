@@ -169,7 +169,6 @@ export class Schift {
   async search(request: SearchRequest): Promise<SearchResult[]> {
     const body: Record<string, unknown> = {
       query: request.query,
-      collection: request.collection,
       top_k: request.topK,
     };
     if (request.temporal) {
@@ -181,7 +180,11 @@ export class Schift {
         body.temporal_end = request.temporalEnd;
       }
     }
-    return this.post<SearchResult[]>("/v1/query", body);
+    const response = await this.post<{ collection: string; results: SearchResult[] }>(
+      `/v1/collections/${request.collection}/search`,
+      body,
+    );
+    return response.results;
   }
 
   // ---- Aggregation ----
