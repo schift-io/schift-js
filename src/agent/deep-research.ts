@@ -94,8 +94,13 @@ export class DeepResearch {
     for (let i = 0; i < this.maxIterations; i++) {
       iterations = i + 1;
 
-      // 1. Generate search queries
-      const queries = await this.generateQueries(question, allQueries, allResults);
+      // 1. Generate search queries (if LLM fails, stop iterating with what we have)
+      let queries: string[];
+      try {
+        queries = await this.generateQueries(question, allQueries, allResults);
+      } catch {
+        break;
+      }
       allQueries.push(...queries);
 
       // 2. Execute searches
@@ -114,13 +119,25 @@ export class DeepResearch {
 
       // 3. Evaluate sufficiency (skip on last iteration — synthesize anyway)
       if (i < this.maxIterations - 1) {
-        const sufficient = await this.evaluateSufficiency(question, allResults);
-        if (sufficient) break;
+        try {
+          const sufficient = await this.evaluateSufficiency(question, allResults);
+          if (sufficient) break;
+        } catch {
+          break; // LLM down — synthesize with what we have
+        }
       }
     }
 
-    // 4. Synthesize
-    const answer = await this.synthesize(question, allResults);
+    // 4. Synthesize (if no results gathered, return empty report)
+    if (allResults.length === 0) {
+      return { answer: "Research could not be completed — no results were gathered.", sources: [], iterations, totalQueries: allQueries.length };
+    }
+    let answer: string;
+    try {
+      answer = await this.synthesize(question, allResults);
+    } catch {
+      answer = `Research gathered ${allResults.length} sources but synthesis failed. Sources: ${allResults.map((r) => r.title).join(", ")}`;
+    }
 
     return {
       answer,

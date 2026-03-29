@@ -34,8 +34,14 @@ export class RAG {
     this.transport = transport;
   }
 
+  /** Maximum query length in characters (embedding models typically cap at ~8K tokens). */
+  static readonly MAX_QUERY_LENGTH = 8000;
+
   /** Semantic search over the bucket's documents. */
   async search(query: string): Promise<SearchResultItem[]> {
+    if (query.length > RAG.MAX_QUERY_LENGTH) {
+      query = query.slice(0, RAG.MAX_QUERY_LENGTH);
+    }
     const resp = await this.transport.post<{ results: SearchResultItem[] }>(
       `/v1/buckets/${this.bucket}/search`,
       { query, top_k: this.topK },

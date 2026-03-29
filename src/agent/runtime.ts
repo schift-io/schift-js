@@ -26,6 +26,7 @@ export class AgentRuntime {
   private readonly memory: ConversationMemory;
   private readonly llm: LLMCallFn;
   private readonly maxSteps: number;
+  private readonly toolTimeoutMs: number;
 
   constructor(
     config: AgentConfig,
@@ -38,12 +39,16 @@ export class AgentRuntime {
     this.memory = memory;
     this.llm = llm;
     this.maxSteps = config.maxSteps ?? 10;
+    this.toolTimeoutMs = config.toolTimeoutMs ?? 30_000;
   }
 
   async run(input: string): Promise<AgentRunResult> {
     const startTime = Date.now();
     const steps: AgentStep[] = [];
     let stepCounter = 0;
+    let totalToolCalls = 0;
+    const maxToolCalls = this.config.maxToolCalls ?? this.maxSteps * 5;
+    const perToolCounts = new Map<string, number>();
 
     // Seed memory with system + user message
     this.memory.add({ role: "system", content: this.config.instructions });
@@ -71,13 +76,33 @@ export class AgentRuntime {
       }
 
       // Case 2: LLM wants to call tools
+      if (totalToolCalls + response.tool_calls.length > maxToolCalls) {
+        const errorMsg = `Agent exceeded maximum tool calls (${maxToolCalls})`;
+        steps.push({ id: `step_${stepCounter++}`, type: "error", content: errorMsg, durationMs: 0 });
+        return { steps, output: errorMsg, totalDurationMs: Date.now() - startTime };
+      }
       for (const toolCall of response.tool_calls) {
+        totalToolCalls++;
         const { name, arguments: argsStr } = toolCall.function;
+
+        // Per-tool call limit (e.g., collect_lead: maxCallsPerRun=1)
+        const toolCount = (perToolCounts.get(name) ?? 0) + 1;
+        perToolCounts.set(name, toolCount);
+        const toolDef = this.tools.get(name);
+        if (toolDef?.maxCallsPerRun && toolCount > toolDef.maxCallsPerRun) {
+          const limitMsg = `Tool "${name}" exceeded per-run call limit (${toolDef.maxCallsPerRun})`;
+          steps.push({ id: `step_${stepCounter++}`, type: "tool_result", toolName: name, toolResult: { success: false, data: null, error: limitMsg }, durationMs: 0 });
+          this.memory.add({ role: "tool", content: limitMsg, toolCallId: toolCall.id, toolName: name });
+          continue;
+        }
+
         let args: Record<string, unknown>;
+        let parseError: string | null = null;
         try {
           args = JSON.parse(argsStr);
-        } catch {
+        } catch (e) {
           args = {};
+          parseError = `Invalid JSON in tool arguments: ${e instanceof Error ? e.message : String(e)}. Raw: ${argsStr.slice(0, 200)}`;
         }
 
         // Record tool_call step
@@ -89,17 +114,27 @@ export class AgentRuntime {
           durationMs: 0, // updated after execution
         });
 
-        // Execute (catch unknown tool names — LLM may hallucinate)
-        const execStart = Date.now();
+        // If JSON parse failed, feed error back to LLM instead of executing
         let result;
-        try {
-          result = await this.tools.execute(name, args);
-        } catch (err) {
-          result = {
-            success: false,
-            data: null,
-            error: err instanceof Error ? err.message : String(err),
-          };
+        const execStart = Date.now();
+        if (parseError) {
+          result = { success: false, data: null, error: parseError };
+        } else {
+          // Execute with timeout (catch unknown tool names — LLM may hallucinate)
+          try {
+            result = await Promise.race([
+              this.tools.execute(name, args),
+              new Promise<never>((_, reject) =>
+                setTimeout(() => reject(new Error(`Tool "${name}" timed out after ${this.toolTimeoutMs}ms`)), this.toolTimeoutMs),
+              ),
+            ]);
+          } catch (err) {
+            result = {
+              success: false,
+              data: null,
+              error: err instanceof Error ? err.message : String(err),
+            };
+          }
         }
         const execDuration = Date.now() - execStart;
 
@@ -120,9 +155,14 @@ export class AgentRuntime {
           role: "assistant",
           content: `[Tool call: ${name}(${argsStr})]`,
         });
+        const maxResultBytes = 32_000; // ~8K tokens, safe for most LLMs
+        let resultStr = JSON.stringify(result.data);
+        if (resultStr.length > maxResultBytes) {
+          resultStr = resultStr.slice(0, maxResultBytes) + `\n...[truncated from ${resultStr.length} to ${maxResultBytes} chars]`;
+        }
         this.memory.add({
           role: "tool",
-          content: JSON.stringify(result.data),
+          content: resultStr,
           toolCallId: toolCall.id,
           toolName: name,
         });

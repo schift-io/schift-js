@@ -116,13 +116,14 @@ describe("DeepResearch", () => {
     expect((result.data as any).sources.length).toBeGreaterThan(0);
   });
 
-  it("asTool handler returns error on failure", async () => {
+  it("asTool handler returns partial result on LLM failure", async () => {
     const failLlm = vi.fn().mockRejectedValue(new Error("LLM down"));
     const dr = new DeepResearch({}, failLlm, mockTransport as any);
     const tool = dr.asTool();
     const result = await tool.handler({ query: "test" });
-    expect(result.success).toBe(false);
-    expect(result.error).toContain("LLM down");
+    // Graceful degradation: returns success with a fallback message instead of crashing
+    expect(result.success).toBe(true);
+    expect((result.data as any).answer).toContain("could not be completed");
   });
 
   it("deduplicates results by URL", async () => {

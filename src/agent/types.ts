@@ -22,6 +22,8 @@ export interface AgentTool {
   parameters?: JSONSchema;
   /** The function that executes the tool. */
   handler: (args: Record<string, unknown>) => Promise<ToolResult>;
+  /** Maximum times this tool can be called per agent.run(). Prevents prompt injection abuse. */
+  maxCallsPerRun?: number;
 }
 
 /** A single step in an agent run. */
@@ -64,6 +66,10 @@ export interface AgentConfig {
   memory?: MemoryConfig;
   /** Maximum ReAct loop iterations. Default: 10. */
   maxSteps?: number;
+  /** Timeout for each tool execution in milliseconds. Default: 30000 (30s). */
+  toolTimeoutMs?: number;
+  /** Maximum total tool calls per run. Default: maxSteps * 5. */
+  maxToolCalls?: number;
 }
 
 /** Message in a conversation. */
