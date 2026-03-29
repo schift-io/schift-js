@@ -1,6 +1,6 @@
 # @schift-io/sdk
 
-Schift TypeScript SDK for embeddings, vector search, RAG chat, and workflows.
+Schift TypeScript SDK for bucket upload, vector search, and workflows.
 
 ## Install
 
@@ -15,20 +15,24 @@ import { Schift } from "@schift-io/sdk";
 
 const client = new Schift({ apiKey: "sch_your_api_key" });
 
-// Embed a single text
-const { embedding, dimensions } = await client.embed({
-  text: "Hello, world!",
-  model: "openai/text-embedding-3-small",
+// Create or reuse a bucket, upload a document, then search it.
+const bucket = await client.createBucket({ name: "company-docs" });
+const file = new File([await readFile("manual.pdf")], "manual.pdf", {
+  type: "application/pdf",
 });
-console.log(`Dimension: ${dimensions}, vector: [${embedding.slice(0, 3).join(", ")}, ...]`);
+await client.db.upload(bucket.id, { files: [file] });
 
-// Batch embed
-const { embeddings } = await client.embedBatch({
-  texts: ["first document", "second document"],
-  model: "openai/text-embedding-3-small",
-  dimensions: 1024,
+const jobs = await client.listJobs({ bucketId: bucket.id, limit: 5 });
+const results = await client.bucketSearch(bucket.id, {
+  query: "refund policy",
+  topK: 5,
 });
+
+console.log(jobs[0]?.status ?? "queued");
+console.log(results[0]);
 ```
+
+Use `collectionSearch()` when you want the generic collection retrieval surface, `POST /v1/chat` for bucket-backed RAG chat with sources, and `POST /v1/chat/completions` for OpenAI-compatible LLM routing without bucket context.
 
 ## API Key
 
@@ -96,6 +100,116 @@ const fresh = await webSearch.search("Schift framework launch updates");
 ```
 
 Tool calling helpers created from `client.tools` include `schift_web_search` by default, so OpenAI/Claude/Vercel AI SDK integrations can call live web search without extra wiring.
+
+### Agent SDK Compatibility
+
+Schift sits underneath the agent framework. The integration point is always the same:
+
+1. let the agent call a Schift search tool
+2. run retrieval against Schift collections or buckets
+3. return grounded chunks back to the model
+
+That means you can keep your preferred agent SDK and swap only the retrieval layer.
+
+### Google Gen AI SDK
+
+```typescript
+import { GoogleGenAI } from "@google/genai";
+import { Schift } from "@schift-io/sdk";
+
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+const schift = new Schift({ apiKey: process.env.SCHIFT_API_KEY! });
+
+const firstTurn = await ai.models.generateContent({
+  model: "gemini-2.5-flash",
+  contents: "What changed in the latest billing policy?",
+  config: {
+    tools: schift.tools.googleGenAI(),
+  },
+});
+
+const functionCall = firstTurn.functionCalls?.[0];
+if (functionCall) {
+  const functionResponsePart = await schift.tools.googleFunctionResponse({
+    name: functionCall.name,
+    args: functionCall.args ?? {},
+  });
+
+  const secondTurn = await ai.models.generateContent({
+    model: "gemini-2.5-flash",
+    contents: [
+      { role: "user", parts: [{ text: "What changed in the latest billing policy?" }] },
+      { role: "model", parts: [{ functionCall }] },
+      { role: "user", parts: [functionResponsePart] },
+    ],
+  });
+
+  console.log(secondTurn.text);
+}
+```
+
+### Vercel AI SDK
+
+```typescript
+import { generateText } from "ai";
+import { openai } from "@ai-sdk/openai";
+import { Schift } from "@schift-io/sdk";
+
+const schift = new Schift({ apiKey: process.env.SCHIFT_API_KEY! });
+
+const result = await generateText({
+  model: openai("gpt-4o-mini"),
+  prompt: "What changed in the latest billing policy?",
+  tools: schift.tools.vercelAI(),
+  maxSteps: 5,
+});
+
+console.log(result.text);
+```
+
+### Mastra
+
+If you are using Mastra, wrap `client.search()` in a Mastra tool and keep the rest of the agent stack unchanged.
+
+```typescript
+import { Agent } from "@mastra/core/agent";
+import { createTool } from "@mastra/core/tools";
+import { openai } from "@ai-sdk/openai";
+import { z } from "zod";
+import { Schift } from "@schift-io/sdk";
+
+const client = new Schift({ apiKey: process.env.SCHIFT_API_KEY! });
+
+const schiftSearchTool = createTool({
+  id: "schift-search",
+  description: "Retrieve context from a Schift collection.",
+  inputSchema: z.object({
+    collection: z.string(),
+    query: z.string(),
+    topK: z.number().int().min(1).max(10).default(5),
+  }),
+  execute: async ({ context }) => ({
+    results: await client.search({
+      collection: context.collection,
+      query: context.query,
+      topK: context.topK,
+      mode: "hybrid",
+    }),
+  }),
+});
+
+const agent = new Agent({
+  name: "docs-agent",
+  instructions: "Use schift-search before answering document questions.",
+  model: openai("gpt-4o-mini"),
+  tools: { schiftSearchTool },
+});
+```
+
+Examples:
+
+- [`examples/google-genai-rag.ts`](./examples/google-genai-rag.ts)
+- [`examples/vercel-ai-rag.ts`](./examples/vercel-ai-rag.ts)
 
 ### Collections
 
