@@ -38,15 +38,11 @@ jobs:
       - name: Test
         run: npm test
 
-      - name: Validate tag and package version
+      - name: Set package version from release tag
         if: github.event_name == 'release'
         run: |
           TAG_VERSION="${GITHUB_REF_NAME#v}"
-          PACKAGE_VERSION="$(node -p \"require('./package.json').version\")"
-          if [ "$TAG_VERSION" != "$PACKAGE_VERSION" ]; then
-            echo "Tag version ($TAG_VERSION) does not match package.json version ($PACKAGE_VERSION)."
-            exit 1
-          fi
+          npm version "$TAG_VERSION" --no-git-tag-version --allow-same-version
 
       - name: Publish to npm
         if: github.event_name == 'release' || github.event.inputs.publish == 'true'
