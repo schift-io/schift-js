@@ -612,8 +612,11 @@ describe("Scenario #19: Per-tool maxCallsPerRun limit", () => {
 
     // Handler should be called only once (first call succeeds, second blocked)
     expect(handlerSpy).toHaveBeenCalledTimes(1);
+    expect(llm).toHaveBeenCalledTimes(2);
     const toolResults = result.steps.filter((s) => s.type === "tool_result");
     expect(toolResults[1]?.toolResult?.error).toContain("per-run call limit");
+    expect(result.output).toContain("per-run call limit");
+    expect(result.steps.at(-1)?.type).toBe("error");
   });
 });
 

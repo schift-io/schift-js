@@ -55,6 +55,7 @@ export class AgentRuntime {
     this.memory.add({ role: "user", content: input });
 
     const toolDefs = this.tools.toOpenAI();
+    let terminalError: string | null = null;
 
     for (let iteration = 0; iteration < this.maxSteps; iteration++) {
       const messages = this.memory.getMessages();
@@ -93,7 +94,8 @@ export class AgentRuntime {
           const limitMsg = `Tool "${name}" exceeded per-run call limit (${toolDef.maxCallsPerRun})`;
           steps.push({ id: `step_${stepCounter++}`, type: "tool_result", toolName: name, toolResult: { success: false, data: null, error: limitMsg }, durationMs: 0 });
           this.memory.add({ role: "tool", content: limitMsg, toolCallId: toolCall.id, toolName: name });
-          continue;
+          terminalError = limitMsg;
+          break;
         }
 
         let args: Record<string, unknown>;
@@ -166,6 +168,16 @@ export class AgentRuntime {
           toolCallId: toolCall.id,
           toolName: name,
         });
+      }
+
+      if (terminalError) {
+        steps.push({
+          id: `step_${stepCounter++}`,
+          type: "error",
+          content: terminalError,
+          durationMs: 0,
+        });
+        return { steps, output: terminalError, totalDurationMs: Date.now() - startTime };
       }
     }
 
