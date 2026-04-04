@@ -7,9 +7,11 @@ import type { ChatMessage, MemoryConfig } from "./types.js";
 export class ConversationMemory {
   private messages: ChatMessage[] = [];
   private readonly maxMessages: number;
+  private readonly transformContext?: (messages: ChatMessage[]) => ChatMessage[];
 
   constructor(config?: MemoryConfig) {
     this.maxMessages = config?.maxMessages ?? 50;
+    this.transformContext = config?.transformContext;
   }
 
   /** Add a message to history. */
@@ -20,7 +22,8 @@ export class ConversationMemory {
 
   /** Get all messages (system + recent history within window). */
   getMessages(): ChatMessage[] {
-    return [...this.messages];
+    const cloned = [...this.messages];
+    return this.transformContext ? this.transformContext(cloned) : cloned;
   }
 
   /** Clear all non-system messages. */

@@ -22,6 +22,33 @@ export class ToolRegistry {
     return this.tools.get(name);
   }
 
+  /** Check if tool exists by name. */
+  has(name: string): boolean {
+    return this.tools.has(name);
+  }
+
+  /** Return a filtered registry by allowed tool names. */
+  filtered(allowedNames: Set<string>): ToolRegistry {
+    const registry = new ToolRegistry();
+    for (const tool of this.tools.values()) {
+      if (allowedNames.has(tool.name)) {
+        registry.register(tool);
+      }
+    }
+    return registry;
+  }
+
+  /** Return a registry excluding blocked tool names. */
+  without(blockedNames: Set<string>): ToolRegistry {
+    const registry = new ToolRegistry();
+    for (const tool of this.tools.values()) {
+      if (!blockedNames.has(tool.name)) {
+        registry.register(tool);
+      }
+    }
+    return registry;
+  }
+
   /** List all registered tools. */
   list(): AgentTool[] {
     return [...this.tools.values()];

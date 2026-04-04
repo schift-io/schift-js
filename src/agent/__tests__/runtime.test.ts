@@ -129,6 +129,12 @@ describe("AgentRuntime", () => {
     const toolResultStep = result.steps.find((s) => s.type === "tool_result");
     expect(toolResultStep?.toolResult?.success).toBe(false);
     expect(toolResultStep?.toolResult?.error).toContain("kaboom");
+
+    const secondTurnMessages = llm.mock.calls[1]?.[0] as ChatMessage[];
+    const toolMemory = secondTurnMessages.find((m) => m.role === "tool" && m.toolName === "broken");
+    expect(toolMemory?.content).toContain("\"success\":false");
+    expect(toolMemory?.content).toContain("\"error\"");
+    expect(toolMemory?.content).toContain("kaboom");
   });
 
   it("handles hallucinated tool names gracefully", async () => {

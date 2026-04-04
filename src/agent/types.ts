@@ -37,10 +37,15 @@ export interface AgentStep {
   durationMs: number;
 }
 
+import type { SkillLoader } from "./skills.js";
+import type { ExtensionInitFn } from "./extensions.js";
+
 /** Configuration for conversation memory. */
 export interface MemoryConfig {
   /** Maximum number of messages to retain. Default: 50. */
   maxMessages?: number;
+  /** Optional hook to transform context before each LLM call. */
+  transformContext?: (messages: ChatMessage[]) => ChatMessage[];
 }
 
 /** Configuration for creating an Agent. */
@@ -51,6 +56,14 @@ export interface AgentConfig {
   instructions: string;
   /** LLM model identifier. Default: "gpt-4o-mini". */
   model?: ModelId | (string & {});
+  /** Skills config for dynamic skill loading/resolution. */
+  skills?: SkillsConfig;
+  /** Extension initializers or module paths. */
+  extensions?: Array<ExtensionInitFn | string>;
+  /** Forward-compatible MCP server configs. */
+  mcp?: MCPServerConfig[];
+  /** Execute tool calls in parallel per turn when true. */
+  parallelToolExecution?: boolean;
   /**
    * Custom OpenAI-compatible endpoint (Ollama, vLLM, LiteLLM, etc.).
    * When set, bypasses Schift Cloud and calls this endpoint directly.
@@ -85,6 +98,37 @@ export interface AgentRunResult {
   steps: AgentStep[];
   output: string;
   totalDurationMs: number;
+}
+
+/** Per-run options. */
+export interface RunOptions {
+  requestId?: string;
+  signal?: AbortSignal;
+}
+
+/** Skills runtime configuration. */
+export interface SkillsConfig {
+  loader: SkillLoader;
+  autoResolve?: boolean;
+}
+
+/** Policy contract derived from the selected skill for a single run. */
+export interface SkillContract {
+  skillName: string;
+  model?: string;
+  allowedTools?: string[];
+  blockedTools?: string[];
+  procedures?: string[];
+  constraints?: string[];
+}
+
+/** MCP server configuration (forward compatibility). */
+export interface MCPServerConfig {
+  transport: "stdio" | "sse";
+  command?: string;
+  args?: string[];
+  url?: string;
+  toolPrefix?: string;
 }
 
 /** Configuration for the RAG primitive. */
