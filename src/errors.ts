@@ -23,3 +23,10 @@ export class QuotaError extends SchiftError {
     this.name = "QuotaError";
   }
 }
+
+export class EntitlementError extends SchiftError {
+  constructor(message = "Upgrade your plan to access this feature") {
+    super(message, 403, "entitlement_error");
+    this.name = "EntitlementError";
+  }
+}

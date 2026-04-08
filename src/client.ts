@@ -1,4 +1,4 @@
-import { AuthError, QuotaError, SchiftError } from "./errors.js";
+import { AuthError, EntitlementError, QuotaError, SchiftError } from "./errors.js";
 import type {
   SchiftConfig,
   EmbedRequest,
@@ -504,7 +504,7 @@ export class Schift {
     return this.post(`/v1/collections/${collection}/add`, request as unknown as Record<string, unknown>);
   }
   async collectionSearch(collection: string, request: { query: string; topK?: number; filter?: any; task?: string; model?: string; mode?: string; rerank?: boolean }): Promise<any> {
-    return this.post(`/v1/collections/${collection}/search`, { query: request.query, top_k: request.topK ?? 10, filter: request.filter, task: request.task, model: request.model, mode: request.mode ?? "hybrid", rerank: request.rerank });
+    return this.post(`/v1/collections/${collection}/search`, { query: request.query, top_k: request.topK ?? 10, filter: request.filter, task: request.task, model: request.model, mode: request.mode ?? "vector", rerank: request.rerank });
   }
 
   // ---- Buckets ----
@@ -542,7 +542,7 @@ export class Schift {
     return this.get("/v1/usage/me");
   }
   async usageSummary(): Promise<any> {
-    return this.get("/v1/usage/summary");
+    return this.get("/v1/usage/current");
   }
 
   // ---- Jobs ----
@@ -732,6 +732,7 @@ export class Schift {
 
     if (resp.status === 401) throw new AuthError(detail);
     if (resp.status === 402) throw new QuotaError(detail);
+    if (resp.status === 403) throw new EntitlementError(detail);
     throw new SchiftError(
       `API error ${resp.status}: ${detail}`,
       resp.status,

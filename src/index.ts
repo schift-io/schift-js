@@ -1,5 +1,5 @@
 export { Schift } from "./client.js";
-export { SchiftError, AuthError, QuotaError } from "./errors.js";
+export { SchiftError, AuthError, QuotaError, EntitlementError } from "./errors.js";
 export type {
   EmbedRequest,
   EmbedResponse,
