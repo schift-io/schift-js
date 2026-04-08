@@ -139,7 +139,6 @@ export class AgentRuntime {
           const limitMsg = `Tool "${name}" exceeded per-run call limit (${toolDef.maxCallsPerRun})`;
           const result = { success: false, data: null, error: limitMsg };
           this.memory.add({ role: "tool", content: limitMsg, toolCallId: toolCall.id, toolName: name });
-<<<<<<< HEAD
           this.emitter?.emit({
             type: "tool_result",
             runId: this.runId,
@@ -149,11 +148,8 @@ export class AgentRuntime {
             result,
             durationMs: 0,
           });
-          return { toolCall, name, args: {}, argsStr, result, execDuration: 0 };
-=======
           terminalError = limitMsg;
-          break;
->>>>>>> fix/hq-landing-messaging
+          return { toolCall, name, args: {}, argsStr, result, execDuration: 0 };
         }
 
         let args: Record<string, unknown>;

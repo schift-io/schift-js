@@ -12,10 +12,15 @@ import { ToolRegistry } from "../tools.js";
 import { ConversationMemory } from "../memory.js";
 import type { AgentConfig, ChatMessage } from "../types.js";
 
-function createMockLLM(responses: Array<{
-  content?: string;
-  tool_calls?: Array<{ id: string; function: { name: string; arguments: string } }>;
-}>) {
+function createMockLLM(
+  responses: Array<{
+    content?: string;
+    tool_calls?: Array<{
+      id: string;
+      function: { name: string; arguments: string };
+    }>;
+  }>,
+) {
   let callIndex = 0;
   return vi.fn(async (_messages: ChatMessage[], _tools: unknown[]) => {
     const resp = responses[callIndex++];
@@ -36,10 +41,12 @@ describe("Scenario #16: Tool handler timeout", () => {
   it("times out a hanging tool handler and returns error", async () => {
     const llm = createMockLLM([
       {
-        tool_calls: [{
-          id: "call_1",
-          function: { name: "hang", arguments: "{}" },
-        }],
+        tool_calls: [
+          {
+            id: "call_1",
+            function: { name: "hang", arguments: "{}" },
+          },
+        ],
       },
       { content: "Tool timed out, sorry." },
     ]);
@@ -65,10 +72,12 @@ describe("Scenario #16: Tool handler timeout", () => {
   it("succeeds when tool finishes within timeout", async () => {
     const llm = createMockLLM([
       {
-        tool_calls: [{
-          id: "call_1",
-          function: { name: "fast", arguments: '{"x":1}' },
-        }],
+        tool_calls: [
+          {
+            id: "call_1",
+            function: { name: "fast", arguments: '{"x":1}' },
+          },
+        ],
       },
       { content: "Done." },
     ]);
@@ -95,10 +104,12 @@ describe("Scenario #47: Invalid JSON tool arguments", () => {
   it("feeds parse error back to LLM instead of silently using {}", async () => {
     const llm = createMockLLM([
       {
-        tool_calls: [{
-          id: "call_1",
-          function: { name: "search", arguments: "{invalid json!!}" },
-        }],
+        tool_calls: [
+          {
+            id: "call_1",
+            function: { name: "search", arguments: "{invalid json!!}" },
+          },
+        ],
       },
       { content: "I'll fix my arguments." },
     ]);
@@ -131,10 +142,12 @@ describe("Scenario #22: Tool result truncation", () => {
     const largeData = "x".repeat(100_000); // 100KB
     const llm = createMockLLM([
       {
-        tool_calls: [{
-          id: "call_1",
-          function: { name: "big_fetch", arguments: "{}" },
-        }],
+        tool_calls: [
+          {
+            id: "call_1",
+            function: { name: "big_fetch", arguments: "{}" },
+          },
+        ],
       },
       { content: "Got the data." },
     ]);
@@ -183,7 +196,11 @@ describe("Scenario #19: maxToolCalls limit", () => {
     });
 
     const memory = new ConversationMemory();
-    const config: AgentConfig = { ...baseConfig, maxSteps: 100, maxToolCalls: 5 };
+    const config: AgentConfig = {
+      ...baseConfig,
+      maxSteps: 100,
+      maxToolCalls: 5,
+    };
     const runtime = new AgentRuntime(config, registry, memory, llm);
 
     const result = await runtime.run("spam tools");
@@ -204,9 +221,13 @@ describe("Scenario #21: Agent memory isolation per run()", () => {
       post: vi.fn(async (_path: string, body: any) => {
         const messages = body.messages;
         return {
-          choices: [{
-            message: { content: `Echo: ${messages.find((m: any) => m.role === "user")?.content}` },
-          }],
+          choices: [
+            {
+              message: {
+                content: `Echo: ${messages.find((m: any) => m.role === "user")?.content}`,
+              },
+            },
+          ],
         };
       }),
     };
@@ -240,10 +261,12 @@ describe("Scenario #21: Agent memory isolation per run()", () => {
 describe("Scenario #5: maxSteps exhaustion", () => {
   it("returns error with meaningful message when steps exhausted", async () => {
     const responses = Array.from({ length: 3 }, () => ({
-      tool_calls: [{
-        id: "c1",
-        function: { name: "search", arguments: '{"q":"complex"}' },
-      }],
+      tool_calls: [
+        {
+          id: "c1",
+          function: { name: "search", arguments: '{"q":"complex"}' },
+        },
+      ],
     }));
     const llm = createMockLLM(responses);
 
@@ -322,11 +345,13 @@ describe("Scenario #32: LLM sends wrong params (no schema validation)", () => {
 
     const llm = createMockLLM([
       {
-        tool_calls: [{
-          id: "c1",
-          // LLM sends "username" instead of expected "name"
-          function: { name: "greet", arguments: '{"username":"Alice"}' },
-        }],
+        tool_calls: [
+          {
+            id: "c1",
+            // LLM sends "username" instead of expected "name"
+            function: { name: "greet", arguments: '{"username":"Alice"}' },
+          },
+        ],
       },
       { content: "Greeted." },
     ]);
@@ -389,13 +414,23 @@ describe("Scenario #37: Multiple tool_calls in single response", () => {
     expect(result.output).toBe("All three done.");
     expect(callOrder).toEqual(["tool_a", "tool_b", "tool_c"]); // sequential
     expect(result.steps.filter((s) => s.type === "tool_call")).toHaveLength(3);
-    expect(result.steps.filter((s) => s.type === "tool_result")).toHaveLength(3);
+    expect(result.steps.filter((s) => s.type === "tool_result")).toHaveLength(
+      3,
+    );
   });
 });
 
 // ── #12 (HIGH): LLM 429 retry ───────────────────────────────────────
 
 describe("Scenario #12: LLM provider 429 rate limit retry", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("retries on 429 and succeeds on subsequent attempt", async () => {
     let callCount = 0;
     const mockFetch = vi.fn(async () => {
@@ -405,7 +440,7 @@ describe("Scenario #12: LLM provider 429 rate limit retry", () => {
           ok: false,
           status: 429,
           statusText: "Too Many Requests",
-          headers: new Headers({ "retry-after": "0" }), // instant retry for test
+          headers: new Headers({ "retry-after": "0" }),
         };
       }
       return {
@@ -417,7 +452,6 @@ describe("Scenario #12: LLM provider 429 rate limit retry", () => {
       };
     });
 
-    // Temporarily override global fetch
     const originalFetch = globalThis.fetch;
     globalThis.fetch = mockFetch as any;
 
@@ -429,10 +463,12 @@ describe("Scenario #12: LLM provider 429 rate limit retry", () => {
         apiKey: "test-key",
       });
 
-      const result = await agent.run("hello");
+      const runPromise = agent.run("hello");
+      await vi.runAllTimersAsync();
+      const result = await runPromise;
 
       expect(result.output).toBe("Success after retry!");
-      expect(mockFetch).toHaveBeenCalledTimes(3); // 2 retries + 1 success
+      expect(mockFetch).toHaveBeenCalledTimes(3);
     } finally {
       globalThis.fetch = originalFetch;
     }
@@ -457,8 +493,10 @@ describe("Scenario #12: LLM provider 429 rate limit retry", () => {
         apiKey: "test-key",
       });
 
-      await expect(agent.run("hello")).rejects.toThrow("429");
-      expect(mockFetch).toHaveBeenCalledTimes(4); // 1 initial + 3 retries
+      const assertion = expect(agent.run("hello")).rejects.toThrow("429");
+      await vi.runAllTimersAsync();
+      await assertion;
+      expect(mockFetch).toHaveBeenCalledTimes(4);
     } finally {
       globalThis.fetch = originalFetch;
     }
@@ -475,10 +513,12 @@ describe("Scenario #27: LLM API key expires mid-run", () => {
       if (callCount === 1) {
         // First call succeeds with tool call
         return {
-          tool_calls: [{
-            id: "c1",
-            function: { name: "search", arguments: '{"q":"test"}' },
-          }],
+          tool_calls: [
+            {
+              id: "c1",
+              function: { name: "search", arguments: '{"q":"test"}' },
+            },
+          ],
         };
       }
       // Second call fails (key expired)
@@ -505,10 +545,12 @@ describe("Scenario #44: Schift Cloud 503 during agent.run", () => {
   it("tool error propagates cleanly when RAG search fails", async () => {
     const llm = createMockLLM([
       {
-        tool_calls: [{
-          id: "c1",
-          function: { name: "rag_search", arguments: '{"query":"help"}' },
-        }],
+        tool_calls: [
+          {
+            id: "c1",
+            function: { name: "rag_search", arguments: '{"query":"help"}' },
+          },
+        ],
       },
       { content: "Sorry, search is temporarily unavailable." },
     ]);
@@ -517,7 +559,9 @@ describe("Scenario #44: Schift Cloud 503 during agent.run", () => {
     registry.register({
       name: "rag_search",
       description: "Search docs",
-      handler: async () => { throw new Error("503 Service Unavailable"); },
+      handler: async () => {
+        throw new Error("503 Service Unavailable");
+      },
     });
 
     const memory = new ConversationMemory();
@@ -581,12 +625,24 @@ describe("Scenario #19: Per-tool maxCallsPerRun limit", () => {
     const llm = createMockLLM([
       {
         tool_calls: [
-          { id: "c1", function: { name: "collect_lead", arguments: '{"email":"a@a.com"}' } },
+          {
+            id: "c1",
+            function: {
+              name: "collect_lead",
+              arguments: '{"email":"a@a.com"}',
+            },
+          },
         ],
       },
       {
         tool_calls: [
-          { id: "c2", function: { name: "collect_lead", arguments: '{"email":"b@b.com"}' } },
+          {
+            id: "c2",
+            function: {
+              name: "collect_lead",
+              arguments: '{"email":"b@b.com"}',
+            },
+          },
         ],
       },
       { content: "Done collecting." },
