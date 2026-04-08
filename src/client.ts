@@ -19,6 +19,7 @@ import type {
 } from "./types.js";
 import { WorkflowClient } from "./workflow/client.js";
 import type { HttpTransport } from "./workflow/client.js";
+import { AgentsClient } from "./agents/client.js";
 import { SchiftTools } from "./tools.js";
 
 const DEFAULT_BASE_URL = "https://api.schift.io";
@@ -40,6 +41,17 @@ export class Schift {
    * ```
    */
   readonly workflows: WorkflowClient;
+
+  /**
+   * Managed Agents sub-client — create agents, start runs, stream events.
+   *
+   * @example
+   * ```ts
+   * const agent = await client.agents.create({ name: "CS Bot", instructions: "..." });
+   * const run = await client.agents.runs(agent.id).create({ message: "Hello" });
+   * ```
+   */
+  readonly agents: AgentsClient;
 
   /**
    * Models sub-module — list and inspect available embedding models.
@@ -121,6 +133,7 @@ export class Schift {
     };
 
     this.workflows = new WorkflowClient(this.transport);
+    this.agents = new AgentsClient(this.transport);
 
     // models sub-module — model catalog browsing
     this.models = {

@@ -90,6 +90,19 @@ export {
   getNodeHandler,
 } from "./workflow/index.js";
 
+// ---- Managed Agents ----
+export { AgentsClient, RunsClient } from "./agents/index.js";
+export type {
+  CreateAgentRequest,
+  UpdateAgentRequest,
+  AgentResponse,
+  CreateRunRequest,
+  RunResponse,
+  RunEvent,
+  RagConfig,
+  AgentToolDef,
+} from "./agents/index.js";
+
 // ---- Agent Framework ----
 export {
   Agent,
