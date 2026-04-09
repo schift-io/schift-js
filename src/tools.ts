@@ -43,7 +43,12 @@
  * ```
  */
 
-import type { SearchRequest, SearchResult, ChatRequest, ChatResponse } from "./types.js";
+import type {
+  SearchRequest,
+  SearchResult,
+  ChatRequest,
+  ChatResponse,
+} from "./types.js";
 import type { WebSearchResultItem } from "./agent/types.js";
 
 // ---- Tool definitions per provider ----
@@ -51,6 +56,9 @@ import type { WebSearchResultItem } from "./agent/types.js";
 interface SchiftToolsConfig {
   /** Default collection/bucket for search (can be overridden per call). */
   collection?: string;
+  /** Bucket name or ID for RAG chat/search. Name recommended. */
+  bucket?: string;
+  /** @deprecated Use `bucket` instead. */
   bucketId?: string;
   /** Number of results to return. Default 5. */
   topK?: number;
@@ -98,7 +106,8 @@ export class SchiftTools {
     this.webSearchFn = webSearchFn ?? null;
     this.config = {
       collection: config.collection ?? "",
-      bucketId: config.bucketId ?? "",
+      bucket: config.bucket ?? config.bucketId ?? "",
+      bucketId: config.bucket ?? config.bucketId ?? "",
       topK: config.topK ?? 5,
       includeChat: config.includeChat ?? false,
       includeWebSearch: config.includeWebSearch ?? false,
@@ -159,9 +168,7 @@ export class SchiftTools {
               bucket_id: {
                 type: "string",
                 description: "Document bucket to search in",
-                ...(this.config.bucketId
-                  ? { default: this.config.bucketId }
-                  : {}),
+                ...(this.config.bucket ? { default: this.config.bucket } : {}),
               },
             },
             required: ["message"],
@@ -360,7 +367,11 @@ export class SchiftTools {
     // Raw: { name, input }
     else if (toolCall.name) {
       name = toolCall.name;
-      args = (toolCall as Record<string, unknown>).input as Record<string, unknown> ?? {};
+      args =
+        ((toolCall as Record<string, unknown>).input as Record<
+          string,
+          unknown
+        >) ?? {};
     } else {
       throw new Error("Unrecognized tool call format");
     }
@@ -390,8 +401,7 @@ export class SchiftTools {
   ): Promise<SearchResult[]> {
     return this.searchFn({
       query: args.query as string,
-      collection:
-        (args.collection as string) || this.config.collection,
+      collection: (args.collection as string) || this.config.collection,
       topK: (args.top_k as number) || this.config.topK,
     });
   }
@@ -399,8 +409,10 @@ export class SchiftTools {
   private async _execChat(
     args: Record<string, unknown>,
   ): Promise<ChatResponse> {
+    const resolved =
+      (args.bucket_id as string) || this.config.bucket || this.config.bucketId;
     return this.chatFn({
-      bucketId: (args.bucket_id as string) || this.config.bucketId,
+      bucketId: resolved,
       message: args.message as string,
     });
   }
@@ -409,11 +421,14 @@ export class SchiftTools {
     args: Record<string, unknown>,
   ): Promise<WebSearchResultItem[]> {
     if (!this.webSearchFn) {
-      throw new Error("WebSearch function not configured. Pass webSearchFn to SchiftTools constructor.");
+      throw new Error(
+        "WebSearch function not configured. Pass webSearchFn to SchiftTools constructor.",
+      );
     }
     return this.webSearchFn({
       query: args.query as string,
-      maxResults: (args.max_results as number) || this.config.webSearchMaxResults,
+      maxResults:
+        (args.max_results as number) || this.config.webSearchMaxResults,
     });
   }
 }

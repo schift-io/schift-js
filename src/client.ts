@@ -1,4 +1,9 @@
-import { AuthError, EntitlementError, QuotaError, SchiftError } from "./errors.js";
+import {
+  AuthError,
+  EntitlementError,
+  QuotaError,
+  SchiftError,
+} from "./errors.js";
 import type {
   SchiftConfig,
   EmbedRequest,
@@ -78,7 +83,10 @@ export class Schift {
    * ```
    */
   readonly db: {
-    upload(bucket: string, options: { files: File[] | Blob[] }): Promise<BucketUploadResult>;
+    upload(
+      bucket: string,
+      options: { files: File[] | Blob[] },
+    ): Promise<BucketUploadResult>;
   };
 
   /**
@@ -138,7 +146,8 @@ export class Schift {
     // models sub-module — model catalog browsing
     this.models = {
       listModels: () => this.get<CatalogModel[]>("/v1/catalog"),
-      getModel: (modelId: string) => this.get<CatalogModel>(`/v1/catalog/${modelId}`),
+      getModel: (modelId: string) =>
+        this.get<CatalogModel>(`/v1/catalog/${modelId}`),
     };
 
     // db sub-module — bind `this` so private helpers remain accessible
@@ -153,6 +162,38 @@ export class Schift {
       { includeWebSearch: true },
       (req) => this.webSearch(req.query, req.maxResults),
     );
+  }
+
+  // ---- Bucket resolution ----
+
+  /** Bucket list cache — avoids redundant API calls within a single client instance. */
+  private _bucketCache: Array<{ id: string; name: string }> | null = null;
+  private _bucketCacheTs = 0;
+
+  /**
+   * Resolve a bucket name-or-ID to an actual bucket ID.
+   * - 32-char hex string → treated as UUID, used as-is
+   * - Anything else → looked up by name from /v1/buckets
+   */
+  private async _resolveBucket(nameOrId: string): Promise<string> {
+    // UUID pattern: 32 hex chars (with or without dashes)
+    const hex = nameOrId.replace(/-/g, "");
+    if (/^[0-9a-f]{32}$/i.test(hex)) return hex;
+
+    // Name → lookup
+    const now = Date.now();
+    if (!this._bucketCache || now - this._bucketCacheTs > 30_000) {
+      this._bucketCache =
+        await this.get<Array<{ id: string; name: string }>>("/v1/buckets");
+      this._bucketCacheTs = now;
+    }
+    const found = this._bucketCache.find((b) => b.name === nameOrId);
+    if (!found) {
+      throw new SchiftError(
+        `Bucket not found: "${nameOrId}". Create it first or pass a valid bucket ID.`,
+      );
+    }
+    return found.id;
   }
 
   // ---- Embeddings ----
@@ -201,10 +242,10 @@ export class Schift {
         body.temporal_end = request.temporalEnd;
       }
     }
-    const response = await this.post<{ collection: string; results: SearchResult[] }>(
-      `/v1/collections/${request.collection}/search`,
-      body,
-    );
+    const response = await this.post<{
+      collection: string;
+      results: SearchResult[];
+    }>(`/v1/collections/${request.collection}/search`, body);
     return response.results;
   }
 
@@ -239,15 +280,17 @@ export class Schift {
    * @example
    * ```ts
    * const result = await client.chat({
-   *   bucketId: "my-bucket",
+   *   bucket: "my-bucket",        // name or ID — both work
    *   message: "how do I reset my password?",
    * });
    * console.log(result.reply, result.sources);
    * ```
    */
   async chat(request: ChatRequest): Promise<ChatResponse> {
+    const raw = request.bucket ?? request.bucketId;
+    const bucketId = await this._resolveBucket(raw);
     return this.post<ChatResponse>("/v1/chat", {
-      bucket_id: request.bucketId,
+      bucket_id: bucketId,
       message: request.message,
       history: request.history,
       model: request.model,
@@ -266,7 +309,7 @@ export class Schift {
    * @example
    * ```ts
    * for await (const event of client.chatStream({
-   *   bucketId: "my-bucket",
+   *   bucket: "my-bucket",        // name or ID
    *   message: "summarize the Q4 report",
    * })) {
    *   if (event.type === "sources") console.log(event.sources);
@@ -276,6 +319,8 @@ export class Schift {
    * ```
    */
   async *chatStream(request: ChatRequest): AsyncGenerator<ChatStreamEvent> {
+    const raw = request.bucket ?? request.bucketId;
+    const resolvedBucketId = await this._resolveBucket(raw);
     const url = `${this.baseUrl}/v1/chat`;
     const res = await fetch(url, {
       method: "POST",
@@ -285,7 +330,7 @@ export class Schift {
         "User-Agent": `schift-ts/${VERSION}`,
       },
       body: JSON.stringify({
-        bucket_id: request.bucketId,
+        bucket_id: resolvedBucketId,
         message: request.message,
         history: request.history,
         model: request.model,
@@ -344,10 +389,9 @@ export class Schift {
     query: string,
     maxResults?: number,
   ): Promise<Array<{ title: string; url: string; snippet: string }>> {
-    const resp = await this.post<{ results: Array<{ title: string; url: string; snippet: string }> }>(
-      "/v1/web-search",
-      { query, max_results: maxResults ?? 5 },
-    );
+    const resp = await this.post<{
+      results: Array<{ title: string; url: string; snippet: string }>;
+    }>("/v1/web-search", { query, max_results: maxResults ?? 5 });
     return resp.results;
   }
 
@@ -382,13 +426,16 @@ export class Schift {
     options: { files: File[] | Blob[] },
   ): Promise<BucketUploadResult> {
     // 1. Get or create bucket
-    const buckets = await this.get<Array<{ id: string; name: string }>>("/v1/buckets");
+    const buckets =
+      await this.get<Array<{ id: string; name: string }>>("/v1/buckets");
     const existing = buckets.find((b) => b.name === bucket);
     let bucketId: string;
     if (existing) {
       bucketId = existing.id;
     } else {
-      const created = await this.post<{ id: string }>("/v1/buckets", { name: bucket });
+      const created = await this.post<{ id: string }>("/v1/buckets", {
+        name: bucket,
+      });
       bucketId = created.id;
     }
 
@@ -398,16 +445,19 @@ export class Schift {
       const form = new FormData();
       form.append("files", file);
 
-      const resp = await fetch(`${this.baseUrl}/v1/buckets/${bucketId}/upload`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${this.apiKey}`,
-          "User-Agent": `schift-ts/${VERSION}`,
-          // Do NOT set Content-Type — fetch sets it automatically with boundary
+      const resp = await fetch(
+        `${this.baseUrl}/v1/buckets/${bucketId}/upload`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${this.apiKey}`,
+            "User-Agent": `schift-ts/${VERSION}`,
+            // Do NOT set Content-Type — fetch sets it automatically with boundary
+          },
+          body: form,
+          signal: AbortSignal.timeout(this.timeout),
         },
-        body: form,
-        signal: AbortSignal.timeout(this.timeout),
-      });
+      );
 
       if (!resp.ok) {
         await this.throwError(resp);
@@ -426,43 +476,67 @@ export class Schift {
    *
    * @example
    * ```ts
-   * await schift.addEdges("bucket-id", [
+   * await schift.addEdges("my-bucket", [  // name or ID
    *   { source: "A", target: "B", relation: "follows" },
    *   { source: "B", target: "C", relation: "supersedes", weight: 0.8 },
    * ]);
    * ```
    */
   async addEdges(
-    bucketId: string,
-    edges: Array<{ source: string; target: string; relation?: string; weight?: number }>,
+    bucketOrName: string,
+    edges: Array<{
+      source: string;
+      target: string;
+      relation?: string;
+      weight?: number;
+    }>,
   ): Promise<{ count: number }> {
-    return this.post<{ count: number }>(`/v1/buckets/${bucketId}/edges`, { edges });
+    const bucketId = await this._resolveBucket(bucketOrName);
+    return this.post<{ count: number }>(`/v1/buckets/${bucketId}/edges`, {
+      edges,
+    });
   }
 
   /**
    * List edges for a node.
    */
   async listEdges(
-    bucketId: string,
+    bucketOrName: string,
     nodeId: string,
-    options?: { direction?: "outgoing" | "incoming" | "both"; relation?: string },
-  ): Promise<{ node_id: string; direction: string; edges: Array<{ source: string; target: string; relation: string; weight: number }> }> {
+    options?: {
+      direction?: "outgoing" | "incoming" | "both";
+      relation?: string;
+    },
+  ): Promise<{
+    node_id: string;
+    direction: string;
+    edges: Array<{
+      source: string;
+      target: string;
+      relation: string;
+      weight: number;
+    }>;
+  }> {
+    const bucketId = await this._resolveBucket(bucketOrName);
     const params = new URLSearchParams();
     if (options?.direction) params.set("direction", options.direction);
     if (options?.relation) params.set("relation", options.relation);
     const qs = params.toString();
-    return this.get(`/v1/buckets/${bucketId}/edges/${nodeId}${qs ? `?${qs}` : ""}`);
+    return this.get(
+      `/v1/buckets/${bucketId}/edges/${nodeId}${qs ? `?${qs}` : ""}`,
+    );
   }
 
   /**
    * Delete a specific edge.
    */
   async deleteEdge(
-    bucketId: string,
+    bucketOrName: string,
     source: string,
     target: string,
     relation: string = "related_to",
   ): Promise<void> {
+    const bucketId = await this._resolveBucket(bucketOrName);
     const resp = await fetch(`${this.baseUrl}/v1/buckets/${bucketId}/edges`, {
       method: "DELETE",
       headers: {
@@ -491,13 +565,31 @@ export class Schift {
   }
 
   // ---- Rerank ----
-  async rerank(request: { query: string; documents: Array<{ id?: string; text: string }>; topK?: number; model?: string }): Promise<any> {
-    return this.post("/v1/rerank", { query: request.query, documents: request.documents, top_k: request.topK ?? 5, model: request.model });
+  async rerank(request: {
+    query: string;
+    documents: Array<{ id?: string; text: string }>;
+    topK?: number;
+    model?: string;
+  }): Promise<any> {
+    return this.post("/v1/rerank", {
+      query: request.query,
+      documents: request.documents,
+      top_k: request.topK ?? 5,
+      model: request.model,
+    });
   }
 
   // ---- Collections (extended) ----
-  async createCollection(request: { name: string; dimension: number; model?: string; backend?: string }): Promise<any> {
-    return this.post("/v1/collections", request as unknown as Record<string, unknown>);
+  async createCollection(request: {
+    name: string;
+    dimension: number;
+    model?: string;
+    backend?: string;
+  }): Promise<any> {
+    return this.post(
+      "/v1/collections",
+      request as unknown as Record<string, unknown>,
+    );
   }
   async collectionStats(collectionId: string): Promise<any> {
     return this.get(`/v1/collections/${collectionId}/stats`);
@@ -506,35 +598,111 @@ export class Schift {
     return this.post(`/v1/collections/${collection}/vectors`, { vectors });
   }
   async deleteVectors(collection: string, ids: string[]): Promise<any> {
-    const res = await fetch(`${this.baseUrl}/v1/collections/${collection}/vectors`, { method: "DELETE", headers: this.headers(), body: JSON.stringify({ ids }) });
+    const res = await fetch(
+      `${this.baseUrl}/v1/collections/${collection}/vectors`,
+      {
+        method: "DELETE",
+        headers: this.headers(),
+        body: JSON.stringify({ ids }),
+      },
+    );
     if (!res.ok) throw new Error(`Schift API error: ${res.status}`);
     return res.json();
   }
-  async upsertDocuments(collection: string, documents: any[], model: string): Promise<any> {
-    return this.post(`/v1/collections/${collection}/documents`, { documents, model });
+  async upsertDocuments(
+    collection: string,
+    documents: any[],
+    model: string,
+  ): Promise<any> {
+    return this.post(`/v1/collections/${collection}/documents`, {
+      documents,
+      model,
+    });
   }
-  async collectionAdd(collection: string, request: { documents: string[]; ids?: string[]; metadata?: any[]; task?: string; model?: string }): Promise<any> {
-    return this.post(`/v1/collections/${collection}/add`, request as unknown as Record<string, unknown>);
+  async collectionAdd(
+    collection: string,
+    request: {
+      documents: string[];
+      ids?: string[];
+      metadata?: any[];
+      task?: string;
+      model?: string;
+    },
+  ): Promise<any> {
+    return this.post(
+      `/v1/collections/${collection}/add`,
+      request as unknown as Record<string, unknown>,
+    );
   }
-  async collectionSearch(collection: string, request: { query: string; topK?: number; filter?: any; task?: string; model?: string; mode?: string; rerank?: boolean }): Promise<any> {
-    return this.post(`/v1/collections/${collection}/search`, { query: request.query, top_k: request.topK ?? 10, filter: request.filter, task: request.task, model: request.model, mode: request.mode ?? "vector", rerank: request.rerank });
+  async collectionSearch(
+    collection: string,
+    request: {
+      query: string;
+      topK?: number;
+      filter?: any;
+      task?: string;
+      model?: string;
+      mode?: string;
+      rerank?: boolean;
+    },
+  ): Promise<any> {
+    return this.post(`/v1/collections/${collection}/search`, {
+      query: request.query,
+      top_k: request.topK ?? 10,
+      filter: request.filter,
+      task: request.task,
+      model: request.model,
+      mode: request.mode ?? "vector",
+      rerank: request.rerank,
+    });
   }
 
   // ---- Buckets ----
   async listBuckets(): Promise<any[]> {
     return this.get("/v1/buckets");
   }
-  async createBucket(request: { name: string; description?: string }): Promise<any> {
-    return this.post("/v1/buckets", request as unknown as Record<string, unknown>);
+  async createBucket(request: {
+    name: string;
+    description?: string;
+  }): Promise<any> {
+    return this.post(
+      "/v1/buckets",
+      request as unknown as Record<string, unknown>,
+    );
   }
-  async deleteBucket(bucketId: string): Promise<void> {
-    const res = await fetch(`${this.baseUrl}/v1/buckets/${bucketId}`, { method: "DELETE", headers: this.headers() });
+  async deleteBucket(bucketOrName: string): Promise<void> {
+    const bucketId = await this._resolveBucket(bucketOrName);
+    const res = await fetch(`${this.baseUrl}/v1/buckets/${bucketId}`, {
+      method: "DELETE",
+      headers: this.headers(),
+    });
     if (!res.ok) throw new Error(`Schift API error: ${res.status}`);
   }
-  async bucketSearch(bucketId: string, request: { query: string; topK?: number; mode?: string; rerank?: boolean; model?: string }): Promise<any> {
-    return this.post(`/v1/buckets/${bucketId}/search`, { query: request.query, top_k: request.topK ?? 10, mode: request.mode ?? "hybrid", rerank: request.rerank, model: request.model });
+  async bucketSearch(
+    bucketOrName: string,
+    request: {
+      query: string;
+      topK?: number;
+      mode?: string;
+      rerank?: boolean;
+      model?: string;
+    },
+  ): Promise<any> {
+    const bucketId = await this._resolveBucket(bucketOrName);
+    return this.post(`/v1/buckets/${bucketId}/search`, {
+      query: request.query,
+      top_k: request.topK ?? 10,
+      mode: request.mode ?? "hybrid",
+      rerank: request.rerank,
+      model: request.model,
+    });
   }
-  async bucketGraph(bucketId: string, query?: string, topK?: number): Promise<any> {
+  async bucketGraph(
+    bucketOrName: string,
+    query?: string,
+    topK?: number,
+  ): Promise<any> {
+    const bucketId = await this._resolveBucket(bucketOrName);
     const params = new URLSearchParams();
     if (query) params.set("query", query);
     if (topK) params.set("top_k", String(topK));
@@ -546,7 +714,11 @@ export class Schift {
   async getRouting(): Promise<any> {
     return this.get("/v1/routing");
   }
-  async setRouting(request: { primary?: string; fallback?: string; mode?: string }): Promise<any> {
+  async setRouting(request: {
+    primary?: string;
+    fallback?: string;
+    mode?: string;
+  }): Promise<any> {
     return this.put("/v1/routing", request as Record<string, unknown>);
   }
 
@@ -562,10 +734,20 @@ export class Schift {
   async getJob(jobId: string): Promise<any> {
     return this.get(`/v1/jobs/${jobId}`);
   }
-  async listJobs(options?: { orgId?: string; bucketId?: string; status?: string; limit?: number }): Promise<any[]> {
+  async listJobs(options?: {
+    orgId?: string;
+    bucketId?: string;
+    bucket?: string;
+    status?: string;
+    limit?: number;
+  }): Promise<any[]> {
     const params = new URLSearchParams();
     if (options?.orgId) params.set("org_id", options.orgId);
-    if (options?.bucketId) params.set("bucket_id", options.bucketId);
+    const bucketRef = options?.bucket ?? options?.bucketId;
+    if (bucketRef) {
+      const resolvedId = await this._resolveBucket(bucketRef);
+      params.set("bucket_id", resolvedId);
+    }
     if (options?.status) params.set("status", options.status);
     if (options?.limit) params.set("limit", String(options.limit));
     const qs = params.toString();
@@ -579,27 +761,81 @@ export class Schift {
   }
 
   // ---- Chat Completions ----
-  async chatCompletion(request: { model: string; messages: Array<{ role: string; content: string }>; temperature?: number; maxTokens?: number; topP?: number; stream?: boolean; stop?: string[] }): Promise<any> {
-    return this.post("/v1/chat/completions", { model: request.model, messages: request.messages, temperature: request.temperature, max_tokens: request.maxTokens, top_p: request.topP, stream: request.stream, stop: request.stop });
+  async chatCompletion(request: {
+    model: string;
+    messages: Array<{ role: string; content: string }>;
+    temperature?: number;
+    maxTokens?: number;
+    topP?: number;
+    stream?: boolean;
+    stop?: string[];
+  }): Promise<any> {
+    return this.post("/v1/chat/completions", {
+      model: request.model,
+      messages: request.messages,
+      temperature: request.temperature,
+      max_tokens: request.maxTokens,
+      top_p: request.topP,
+      stream: request.stream,
+      stop: request.stop,
+    });
   }
   async listModels(): Promise<any[]> {
     return this.get("/v1/models");
   }
 
   // ---- Tasks ----
-  async similarity(request: { textA: string; textB: string; model?: string }): Promise<{ score: number }> {
-    return this.post("/v1/similarity", { text_a: request.textA, text_b: request.textB, model: request.model });
+  async similarity(request: {
+    textA: string;
+    textB: string;
+    model?: string;
+  }): Promise<{ score: number }> {
+    return this.post("/v1/similarity", {
+      text_a: request.textA,
+      text_b: request.textB,
+      model: request.model,
+    });
   }
-  async cluster(request: { texts: string[]; nClusters?: number; model?: string }): Promise<{ labels: number[]; centroids: number[][]; n_clusters: number }> {
-    return this.post("/v1/cluster", { texts: request.texts, n_clusters: request.nClusters ?? 5, model: request.model });
+  async cluster(request: {
+    texts: string[];
+    nClusters?: number;
+    model?: string;
+  }): Promise<{ labels: number[]; centroids: number[][]; n_clusters: number }> {
+    return this.post("/v1/cluster", {
+      texts: request.texts,
+      n_clusters: request.nClusters ?? 5,
+      model: request.model,
+    });
   }
-  async classify(request: { text: string; labels: string[]; model?: string }): Promise<{ label: string; scores: Record<string, number> }> {
-    return this.post("/v1/classify", { text: request.text, labels: request.labels, model: request.model });
+  async classify(request: {
+    text: string;
+    labels: string[];
+    model?: string;
+  }): Promise<{ label: string; scores: Record<string, number> }> {
+    return this.post("/v1/classify", {
+      text: request.text,
+      labels: request.labels,
+      model: request.model,
+    });
   }
 
   // ---- Artifacts ----
-  async createArtifact(request: { kind: string; uri: string; checksum?: string; dims?: number; contentType?: string; label?: string }): Promise<any> {
-    return this.post("/v1/artifacts", { kind: request.kind, uri: request.uri, checksum: request.checksum, dims: request.dims, content_type: request.contentType, label: request.label });
+  async createArtifact(request: {
+    kind: string;
+    uri: string;
+    checksum?: string;
+    dims?: number;
+    contentType?: string;
+    label?: string;
+  }): Promise<any> {
+    return this.post("/v1/artifacts", {
+      kind: request.kind,
+      uri: request.uri,
+      checksum: request.checksum,
+      dims: request.dims,
+      content_type: request.contentType,
+      label: request.label,
+    });
   }
   async listArtifacts(kind?: string): Promise<any[]> {
     const qs = kind ? `?kind=${encodeURIComponent(kind)}` : "";
@@ -610,8 +846,22 @@ export class Schift {
   }
 
   // ---- Benchmark Suites ----
-  async createBenchmarkSuite(request: { name: string; sourceModel: string; targetModel: string; sampleRatios?: number[]; queryCount?: number; corpusCount?: number }): Promise<any> {
-    return this.post("/v1/benchmark-suites", { name: request.name, source_model: request.sourceModel, target_model: request.targetModel, sample_ratios: request.sampleRatios, query_count: request.queryCount, corpus_count: request.corpusCount });
+  async createBenchmarkSuite(request: {
+    name: string;
+    sourceModel: string;
+    targetModel: string;
+    sampleRatios?: number[];
+    queryCount?: number;
+    corpusCount?: number;
+  }): Promise<any> {
+    return this.post("/v1/benchmark-suites", {
+      name: request.name,
+      source_model: request.sourceModel,
+      target_model: request.targetModel,
+      sample_ratios: request.sampleRatios,
+      query_count: request.queryCount,
+      corpus_count: request.corpusCount,
+    });
   }
   async listBenchmarkSuites(): Promise<any[]> {
     return this.get("/v1/benchmark-suites");
@@ -627,8 +877,18 @@ export class Schift {
   }
 
   // ---- Drift Monitors ----
-  async createDriftMonitor(request: { name: string; suiteId: string; cadence?: string; minRecoveryR10?: number }): Promise<any> {
-    return this.post("/v1/drift-monitors", { name: request.name, suite_id: request.suiteId, cadence: request.cadence, min_recovery_r10: request.minRecoveryR10 });
+  async createDriftMonitor(request: {
+    name: string;
+    suiteId: string;
+    cadence?: string;
+    minRecoveryR10?: number;
+  }): Promise<any> {
+    return this.post("/v1/drift-monitors", {
+      name: request.name,
+      suite_id: request.suiteId,
+      cadence: request.cadence,
+      min_recovery_r10: request.minRecoveryR10,
+    });
   }
   async listDriftMonitors(): Promise<any[]> {
     return this.get("/v1/drift-monitors");
@@ -648,7 +908,10 @@ export class Schift {
 
   // ---- HTTP layer ----
 
-  private async post<T>(path: string, body: Record<string, unknown>): Promise<T> {
+  private async post<T>(
+    path: string,
+    body: Record<string, unknown>,
+  ): Promise<T> {
     const resp = await fetch(`${this.baseUrl}${path}`, {
       method: "POST",
       headers: {
@@ -667,6 +930,7 @@ export class Schift {
       method: "GET",
       headers: {
         Authorization: `Bearer ${this.apiKey}`,
+        Accept: "application/json",
         "User-Agent": `schift-ts/${VERSION}`,
       },
       signal: AbortSignal.timeout(this.timeout),
@@ -674,7 +938,10 @@ export class Schift {
     return this.handleResponse(resp);
   }
 
-  private async patch<T>(path: string, body: Record<string, unknown>): Promise<T> {
+  private async patch<T>(
+    path: string,
+    body: Record<string, unknown>,
+  ): Promise<T> {
     const resp = await fetch(`${this.baseUrl}${path}`, {
       method: "PATCH",
       headers: {
@@ -688,7 +955,10 @@ export class Schift {
     return this.handleResponse(resp);
   }
 
-  private async put<T>(path: string, body: Record<string, unknown>): Promise<T> {
+  private async put<T>(
+    path: string,
+    body: Record<string, unknown>,
+  ): Promise<T> {
     const resp = await fetch(`${this.baseUrl}${path}`, {
       method: "PUT",
       headers: {
@@ -740,15 +1010,16 @@ export class Schift {
   private async throwError(resp: Response): Promise<never> {
     const text = await resp.text().catch(() => "");
     const detail = (() => {
-      try { return JSON.parse(text).detail; } catch { return text; }
+      try {
+        return JSON.parse(text).detail;
+      } catch {
+        return text;
+      }
     })();
 
     if (resp.status === 401) throw new AuthError(detail);
     if (resp.status === 402) throw new QuotaError(detail);
     if (resp.status === 403) throw new EntitlementError(detail);
-    throw new SchiftError(
-      `API error ${resp.status}: ${detail}`,
-      resp.status,
-    );
+    throw new SchiftError(`API error ${resp.status}: ${detail}`, resp.status);
   }
 }

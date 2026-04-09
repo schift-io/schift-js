@@ -16,14 +16,15 @@ import { Schift } from "@schift-io/sdk";
 const client = new Schift({ apiKey: "sch_your_api_key" });
 
 // Create or reuse a bucket, upload a document, then search it.
-const bucket = await client.createBucket({ name: "company-docs" });
+// All bucket methods accept a name or ID — no need to track UUIDs.
+await client.createBucket({ name: "company-docs" });
 const file = new File([await readFile("manual.pdf")], "manual.pdf", {
   type: "application/pdf",
 });
-await client.db.upload(bucket.id, { files: [file] });
+await client.db.upload("company-docs", { files: [file] });
 
-const jobs = await client.listJobs({ bucketId: bucket.id, limit: 5 });
-const results = await client.bucketSearch(bucket.id, {
+const jobs = await client.listJobs({ bucket: "company-docs", limit: 5 });
+const results = await client.bucketSearch("company-docs", {
   query: "refund policy",
   topK: 5,
 });

@@ -179,7 +179,10 @@ export interface ChatMessage {
 }
 
 export interface ChatRequest {
+  /** Bucket ID (UUID) or name. Resolved internally. */
   bucketId: string;
+  /** Alias — if set, takes precedence over bucketId. Accepts name or ID. */
+  bucket?: string;
   message: string;
   history?: ChatMessage[];
   model?: string;
