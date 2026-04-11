@@ -17,12 +17,14 @@ function mockTransport(): HttpTransport & {
   get: ReturnType<typeof vi.fn>;
   post: ReturnType<typeof vi.fn>;
   patch: ReturnType<typeof vi.fn>;
+  put: ReturnType<typeof vi.fn>;
   delete: ReturnType<typeof vi.fn>;
 } {
   return {
     get: vi.fn(),
     post: vi.fn(),
     patch: vi.fn(),
+    put: vi.fn(),
     delete: vi.fn(),
   };
 }

@@ -178,7 +178,7 @@ export const conditionalRouting = new WorkflowBuilder("Intent Router")
   .addBlock("search_handler", {
     type: "retriever",
     title: "Search Handler",
-    config: { top_k: 5, collection: "knowledge" },
+    config: { top_k: 7, collection: "knowledge" },
   })
   .addBlock("create_handler", {
     type: "http_request",
@@ -362,7 +362,7 @@ export const multiSourceRag = new WorkflowBuilder("Multi-Source RAG + Notify")
   .addBlock("retriever_docs", {
     type: "retriever",
     title: "Search Docs",
-    config: { top_k: 5, collection: "documents" },
+    config: { top_k: 7, collection: "documents" },
   })
   .addBlock("retriever_faq", {
     type: "retriever",

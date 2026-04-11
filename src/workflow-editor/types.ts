@@ -114,7 +114,7 @@ export const BLOCK_TYPES: BlockTypeDefinition[] = [
   { type: "vector_store", label: "Vector Store", category: "Storage", icon: "\u26C1", defaultConfig: { collection: "", upsert: true }, inputs: ["embeddings"], outputs: ["stored"] },
   { type: "collection", label: "Collection", category: "Storage", icon: "\u229E", defaultConfig: { name: "" }, inputs: ["in"], outputs: ["out"] },
   // Retrieval
-  { type: "retriever", label: "Retriever", category: "Retrieval", icon: "\u26B2", defaultConfig: { top_k: 5, collection: "" }, inputs: ["query"], outputs: ["results"] },
+  { type: "retriever", label: "Retriever", category: "Retrieval", icon: "\u26B2", defaultConfig: { top_k: 7, collection: "" }, inputs: ["query"], outputs: ["results"] },
   { type: "reranker", label: "Reranker", category: "Retrieval", icon: "\u21C5", defaultConfig: { model: "rerank-v1", top_n: 3 }, inputs: ["results", "query"], outputs: ["reranked"] },
   // LLM
   { type: "llm", label: "LLM", category: "LLM", icon: "\u25CE", defaultConfig: { model: "gpt-4o-mini", temperature: 0.7, max_tokens: 1024 }, inputs: ["prompt"], outputs: ["response"] },

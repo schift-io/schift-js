@@ -90,6 +90,14 @@ export {
   getNodeHandler,
 } from "./workflow/index.js";
 
+// ---- Providers (BYOK) ----
+export { ProvidersClient } from "./providers/index.js";
+export type {
+  ProviderName,
+  ProviderConfig,
+  SetProviderKeyRequest,
+} from "./providers/index.js";
+
 // ---- Managed Agents ----
 export { AgentsClient, RunsClient } from "./agents/index.js";
 export type {

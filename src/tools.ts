@@ -108,7 +108,7 @@ export class SchiftTools {
       collection: config.collection ?? "",
       bucket: config.bucket ?? config.bucketId ?? "",
       bucketId: config.bucket ?? config.bucketId ?? "",
-      topK: config.topK ?? 5,
+      topK: config.topK ?? 7,
       includeChat: config.includeChat ?? false,
       includeWebSearch: config.includeWebSearch ?? false,
       webSearchMaxResults: config.webSearchMaxResults ?? 5,

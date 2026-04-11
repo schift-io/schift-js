@@ -30,7 +30,7 @@ export class RAG {
 
   constructor(config: RAGConfig, transport: Transport) {
     this.bucket = config.bucket;
-    this.topK = config.topK ?? 5;
+    this.topK = config.topK ?? 7;
     this.transport = transport;
   }
 

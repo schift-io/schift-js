@@ -25,6 +25,7 @@ import type {
 import { WorkflowClient } from "./workflow/client.js";
 import type { HttpTransport } from "./workflow/client.js";
 import { AgentsClient } from "./agents/client.js";
+import { ProvidersClient } from "./providers/client.js";
 import { SchiftTools } from "./tools.js";
 
 const DEFAULT_BASE_URL = "https://api.schift.io";
@@ -112,6 +113,21 @@ export class Schift {
   readonly tools: SchiftTools;
 
   /**
+   * Providers sub-client for managing LLM API keys (BYOK).
+   *
+   * @example
+   * ```ts
+   * // Register a Gemini key
+   * await client.providers.set("google", { api_key: "AIza..." });
+   *
+   * // Check if configured
+   * const config = await client.providers.get("openai");
+   * console.log(config.configured);
+   * ```
+   */
+  readonly providers: ProvidersClient;
+
+  /**
    * HTTP transport for agent/RAG use.
    *
    * @example
@@ -137,11 +153,14 @@ export class Schift {
         this.post<T>(path, body),
       patch: <T>(path: string, body: Record<string, unknown>) =>
         this.patch<T>(path, body),
+      put: <T>(path: string, body: Record<string, unknown>) =>
+        this.put<T>(path, body),
       delete: (path: string) => this.del(path),
     };
 
     this.workflows = new WorkflowClient(this.transport);
     this.agents = new AgentsClient(this.transport);
+    this.providers = new ProvidersClient(this.transport);
 
     // models sub-module — model catalog browsing
     this.models = {
@@ -691,7 +710,7 @@ export class Schift {
     const bucketId = await this._resolveBucket(bucketOrName);
     return this.post(`/v1/buckets/${bucketId}/search`, {
       query: request.query,
-      top_k: request.topK ?? 10,
+      top_k: request.topK ?? 7,
       mode: request.mode ?? "hybrid",
       rerank: request.rerank,
       model: request.model,
