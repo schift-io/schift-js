@@ -96,6 +96,21 @@ describe("WorkflowRunner", () => {
     expect(result.outputs.result).toEqual({ query: "hello" });
   });
 
+  it("propagates inputs via 'out' handle (editor convention)", async () => {
+    const def = makeDef(
+      [
+        { id: "start", type: "start" },
+        { id: "pt", type: "prompt_template", config: { template: "Q: {{query}}" } },
+      ],
+      [{ source: "start", target: "pt", source_handle: "out" }],
+    );
+    const runner = new WorkflowRunner(def);
+    const result = await runner.run({ query: "headache" });
+
+    expect(result.status).toBe("completed");
+    expect(result.blockStates.pt.outputs.prompt).toBe("Q: headache");
+  });
+
   it("runs with empty inputs", async () => {
     const def = makeDef(
       [

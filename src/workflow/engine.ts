@@ -257,10 +257,11 @@ class Engine {
     const inputs: Record<string, unknown> = {};
     for (const edge of this.reverse.get(blockId) ?? []) {
       const upstreamOutputs = blockOutputs.get(edge.source) ?? {};
-      if ((edge.source_handle ?? "output") === "output") {
+      const handle = edge.source_handle ?? "output";
+      if (handle === "output" || handle === "out") {
         Object.assign(inputs, upstreamOutputs);
       } else {
-        inputs[edge.source_handle!] = upstreamOutputs;
+        inputs[handle] = upstreamOutputs;
       }
     }
 

@@ -51,8 +51,8 @@ export function editorStateToGraph(
       id: edge.id,
       source: edge.sourceBlockId,
       target: edge.targetBlockId,
-      source_handle: edge.sourcePort,
-      target_handle: edge.targetPort,
+      source_handle: edge.sourcePort === "out" ? "output" : edge.sourcePort,
+      target_handle: edge.targetPort === "in" ? "input" : edge.targetPort,
     })),
   };
 }
