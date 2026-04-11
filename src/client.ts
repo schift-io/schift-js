@@ -10,6 +10,8 @@ import type {
   EmbedResponse,
   EmbedBatchRequest,
   EmbedBatchResponse,
+  EmbedImageRequest,
+  EmbedImageResponse,
   SearchRequest,
   SearchResult,
   ProjectRequest,
@@ -234,6 +236,15 @@ export class Schift {
       model: request.model,
       dimensions: request.dimensions,
       task_type: request.taskType,
+    });
+  }
+
+  /** Embed images (base64-encoded). Requires a vision-capable model (e.g. schift-embed-1). */
+  async embedImages(request: EmbedImageRequest): Promise<EmbedImageResponse> {
+    return this.post("/v1/embed/image", {
+      images: request.images,
+      model: request.model,
+      dimensions: request.dimensions,
     });
   }
 

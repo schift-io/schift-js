@@ -5,6 +5,8 @@ export type {
   EmbedResponse,
   EmbedBatchRequest,
   EmbedBatchResponse,
+  EmbedImageRequest,
+  EmbedImageResponse,
   SearchRequest,
   SearchResult,
   ProjectRequest,

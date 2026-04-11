@@ -84,6 +84,22 @@ export interface EmbedBatchResponse {
   };
 }
 
+export interface EmbedImageRequest {
+  /** Base64-encoded image data (PNG, JPEG, WebP). */
+  images: string[];
+  model?: string;
+  dimensions?: number;
+}
+
+export interface EmbedImageResponse {
+  embeddings: number[][];
+  model: string;
+  dimensions: number;
+  usage: {
+    image_count: number;
+  };
+}
+
 export type TemporalType = "before" | "after" | "between" | "as_of" | "latest";
 
 export interface SearchRequest {
