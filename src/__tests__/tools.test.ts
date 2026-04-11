@@ -113,7 +113,7 @@ describe("SchiftTools", () => {
       expect(mockSearch).toHaveBeenCalledWith({
         query: "해지 조건",
         collection: "contracts",
-        topK: 5,
+        topK: 7,
       });
       const parsed = JSON.parse(result);
       expect(parsed).toHaveLength(2);
