@@ -187,21 +187,21 @@ export class Schift {
 
   // ---- Bucket resolution ----
 
-  /** Bucket list cache — avoids redundant API calls within a single client instance. */
+  /** Bucket list cache; avoids redundant API calls within a single client instance. */
   private _bucketCache: Array<{ id: string; name: string }> | null = null;
   private _bucketCacheTs = 0;
 
   /**
    * Resolve a bucket name-or-ID to an actual bucket ID.
-   * - 32-char hex string → treated as UUID, used as-is
-   * - Anything else → looked up by name from /v1/buckets
+   * - 32-char hex string -> treated as UUID, used as-is
+   * - Anything else -> looked up by name from /v1/buckets
    */
   private async _resolveBucket(nameOrId: string): Promise<string> {
     // UUID pattern: 32 hex chars (with or without dashes)
     const hex = nameOrId.replace(/-/g, "");
     if (/^[0-9a-f]{32}$/i.test(hex)) return hex;
 
-    // Name → lookup
+    // Name lookup
     const now = Date.now();
     if (!this._bucketCache || now - this._bucketCacheTs > 30_000) {
       this._bucketCache =
@@ -251,6 +251,10 @@ export class Schift {
   // ---- Search ----
 
   async search(request: SearchRequest): Promise<SearchResult[]> {
+    const bucket = request.bucket ?? request.collection;
+    if (!bucket) {
+      throw new Error("search requires `bucket`");
+    }
     const body: Record<string, unknown> = {
       query: request.query,
       top_k: request.topK,
@@ -273,9 +277,10 @@ export class Schift {
       }
     }
     const response = await this.post<{
-      collection: string;
+      bucket_id?: string;
+      collection?: string;
       results: SearchResult[];
-    }>(`/v1/collections/${request.collection}/search`, body);
+    }>(`/v1/buckets/${bucket}/search`, body);
     return response.results;
   }
 
@@ -310,7 +315,7 @@ export class Schift {
    * @example
    * ```ts
    * const result = await client.chat({
-   *   bucket: "my-bucket",        // name or ID — both work
+   *   bucket: "my-bucket",        // name or ID; both work
    *   message: "how do I reset my password?",
    * });
    * console.log(result.reply, result.sources);
@@ -391,15 +396,28 @@ export class Schift {
       const lines = buffer.split("\n");
       buffer = lines.pop() ?? "";
 
+      let currentEventType: string | null = null;
       for (const line of lines) {
-        if (!line.startsWith("data: ")) continue;
+        if (line.startsWith("event: ")) {
+          currentEventType = line.slice(7).trim();
+          continue;
+        }
+        if (!line.startsWith("data: ")) {
+          currentEventType = null;
+          continue;
+        }
         const data = line.slice(6).trim();
         if (!data || data === "[DONE]") continue;
         try {
-          yield JSON.parse(data) as ChatStreamEvent;
+          const parsed = JSON.parse(data);
+          if (currentEventType === "pipeline_step") {
+            parsed.type = "pipeline_step";
+          }
+          yield parsed as ChatStreamEvent;
         } catch {
           // skip malformed
         }
+        currentEventType = null;
       }
     }
   }
@@ -580,16 +598,19 @@ export class Schift {
     if (!resp.ok) await this.throwError(resp);
   }
 
-  // ---- Collections ----
+  // ---- Buckets (legacy collection aliases kept below) ----
 
+  /** @deprecated Use listBuckets() instead. */
   async listCollections(): Promise<any[]> {
-    return this.get<any[]>("/v1/collections");
+    return this.listBuckets();
   }
 
+  /** @deprecated Use bucket APIs instead. */
   async getCollection(collectionId: string): Promise<any> {
     return this.get<any>(`/v1/collections/${collectionId}`);
   }
 
+  /** @deprecated Use bucket APIs instead. */
   async deleteCollection(collectionId: string): Promise<void> {
     await this.del(`/v1/collections/${collectionId}`);
   }
@@ -609,7 +630,8 @@ export class Schift {
     });
   }
 
-  // ---- Collections (extended) ----
+  // ---- Legacy collection aliases ----
+  /** @deprecated Use createBucket() when possible. */
   async createCollection(request: {
     name: string;
     dimension: number;
@@ -621,12 +643,15 @@ export class Schift {
       request as unknown as Record<string, unknown>,
     );
   }
+  /** @deprecated Use bucket stats APIs when possible. */
   async collectionStats(collectionId: string): Promise<any> {
     return this.get(`/v1/collections/${collectionId}/stats`);
   }
+  /** @deprecated Use bucket-oriented ingest APIs when possible. */
   async upsertVectors(collection: string, vectors: any[]): Promise<any> {
     return this.post(`/v1/collections/${collection}/vectors`, { vectors });
   }
+  /** @deprecated Use bucket-oriented ingest APIs when possible. */
   async deleteVectors(collection: string, ids: string[]): Promise<any> {
     const res = await fetch(
       `${this.baseUrl}/v1/collections/${collection}/vectors`,
@@ -676,7 +701,7 @@ export class Schift {
       rerank?: boolean;
     },
   ): Promise<any> {
-    return this.post(`/v1/collections/${collection}/search`, {
+    return this.post(`/v1/buckets/${collection}/search`, {
       query: request.query,
       top_k: request.topK ?? 10,
       filter: request.filter,

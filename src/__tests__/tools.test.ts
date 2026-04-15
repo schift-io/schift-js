@@ -112,7 +112,7 @@ describe("SchiftTools", () => {
       });
       expect(mockSearch).toHaveBeenCalledWith({
         query: "해지 조건",
-        collection: "contracts",
+        bucket: "my-bucket",
         topK: 7,
       });
       const parsed = JSON.parse(result);
@@ -130,7 +130,7 @@ describe("SchiftTools", () => {
       });
       expect(mockSearch).toHaveBeenCalledWith({
         query: "인보이스 총액",
-        collection: "contracts",
+        bucket: "my-bucket",
         topK: 3,
       });
       expect(JSON.parse(result)).toHaveLength(2);
@@ -162,9 +162,9 @@ describe("SchiftTools", () => {
       await expect(tools.handle({} as any)).rejects.toThrow("Unrecognized");
     });
 
-    it("uses default collection from config", async () => {
+    it("uses collection as a deprecated bucket fallback", async () => {
       mockSearch.mockClear();
-      const tools = createTools({ collection: "legal-docs" });
+      const tools = createTools({ bucketId: "", collection: "legal-docs" });
       await tools.handle({
         function: {
           name: "schift_search",
@@ -172,7 +172,7 @@ describe("SchiftTools", () => {
         },
       });
       expect(mockSearch).toHaveBeenCalledWith(
-        expect.objectContaining({ collection: "legal-docs" }),
+        expect.objectContaining({ bucket: "legal-docs" }),
       );
     });
 

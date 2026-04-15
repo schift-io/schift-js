@@ -16,7 +16,7 @@ import { Schift } from "@schift-io/sdk";
 const client = new Schift({ apiKey: "sch_your_api_key" });
 
 // Create or reuse a bucket, upload a document, then search it.
-// All bucket methods accept a name or ID — no need to track UUIDs.
+// All bucket methods accept a name or ID; no need to track UUIDs.
 await client.createBucket({ name: "company-docs" });
 const file = new File([await readFile("manual.pdf")], "manual.pdf", {
   type: "application/pdf",
@@ -33,7 +33,7 @@ console.log(jobs[0]?.status ?? "queued");
 console.log(results[0]);
 ```
 
-Use `collectionSearch()` when you want the generic collection retrieval surface, `POST /v1/chat` for bucket-backed RAG chat with sources, and `POST /v1/chat/completions` for OpenAI-compatible LLM routing without bucket context.
+Use `search({ bucket: ... })` when you want raw bucket retrieval, `POST /v1/chat` for bucket-backed RAG chat with sources, and `POST /v1/chat/completions` for OpenAI-compatible LLM routing without bucket context.
 
 ## API Key
 
@@ -71,7 +71,7 @@ const batch = await client.embedBatch({
 ```typescript
 const results = await client.search({
   query: "How does projection work?",
-  collection: "my-docs",
+  bucket: "my-docs",
   topK: 10,
 });
 // results: Array<{ id, score, modality, metadata? }>
@@ -107,7 +107,7 @@ Tool calling helpers created from `client.tools` include `schift_web_search` by 
 Schift sits underneath the agent framework. The integration point is always the same:
 
 1. let the agent call a Schift search tool
-2. run retrieval against Schift collections or buckets
+2. run retrieval against Schift buckets
 3. return grounded chunks back to the model
 
 That means you can keep your preferred agent SDK and swap only the retrieval layer.
@@ -183,15 +183,15 @@ const client = new Schift({ apiKey: process.env.SCHIFT_API_KEY! });
 
 const schiftSearchTool = createTool({
   id: "schift-search",
-  description: "Retrieve context from a Schift collection.",
+  description: "Retrieve context from a Schift bucket.",
   inputSchema: z.object({
-    collection: z.string(),
+    bucket: z.string(),
     query: z.string(),
     topK: z.number().int().min(1).max(10).default(5),
   }),
   execute: async ({ context }) => ({
     results: await client.search({
-      collection: context.collection,
+      bucket: context.bucket,
       query: context.query,
       topK: context.topK,
       mode: "hybrid",
@@ -212,17 +212,16 @@ Examples:
 - [`examples/google-genai-rag.ts`](./examples/google-genai-rag.ts)
 - [`examples/vercel-ai-rag.ts`](./examples/vercel-ai-rag.ts)
 
-### Collections
+### Buckets
 
 ```typescript
-// List all collections
-const collections = await client.listCollections();
+// List all buckets
+const buckets = await client.listBuckets();
 
-// Get collection details
-const col = await client.getCollection("collection-id");
+// Legacy collection aliases remain available for older integrations
+const col = await client.getCollection("bucket-id");
 
-// Delete collection
-await client.deleteCollection("collection-id");
+await client.deleteCollection("bucket-id");
 ```
 
 ### Workflows

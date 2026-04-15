@@ -105,7 +105,10 @@ export type TemporalType = "before" | "after" | "between" | "as_of" | "latest";
 export interface SearchRequest {
   query?: string;
   queryVector?: number[];
-  collection: string;
+  /** Bucket name or ID to search. */
+  bucket?: string;
+  /** @deprecated Use `bucket` instead. */
+  collection?: string;
   topK?: number;
   model?: string;
   filter?: Record<string, unknown>;
@@ -197,7 +200,7 @@ export interface ChatMessage {
 export interface ChatRequest {
   /** Bucket ID (UUID) or name. Resolved internally. */
   bucketId: string;
-  /** Alias — if set, takes precedence over bucketId. Accepts name or ID. */
+  /** Alias; if set, takes precedence over bucketId. Accepts name or ID. */
   bucket?: string;
   message: string;
   history?: ChatMessage[];
@@ -221,9 +224,26 @@ export interface ChatResponse {
   model: string;
 }
 
+export interface PipelineStepEvent {
+  step: "search" | "rerank" | "expand" | "generate";
+  status: "started" | "completed" | "error";
+  duration_ms?: number;
+  result_count?: number;
+  method?: string;
+  model?: string;
+  total_tokens?: number;
+  expanded?: boolean;
+  error?: string;
+}
+
 export interface ChatStreamEvent {
-  type: "sources" | "chunk" | "done" | "error";
+  type: "sources" | "chunk" | "done" | "error" | "pipeline_step";
   sources?: ChatSource[];
   content?: string;
   message?: string;
+  /** Present when type === "pipeline_step" */
+  step?: PipelineStepEvent["step"];
+  status?: PipelineStepEvent["status"];
+  duration_ms?: number;
+  result_count?: number;
 }

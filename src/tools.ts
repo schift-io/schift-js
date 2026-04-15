@@ -54,7 +54,7 @@ import type { WebSearchResultItem } from "./agent/types.js";
 // ---- Tool definitions per provider ----
 
 interface SchiftToolsConfig {
-  /** Default collection/bucket for search (can be overridden per call). */
+  /** @deprecated Use `bucket` instead. */
   collection?: string;
   /** Bucket name or ID for RAG chat/search. Name recommended. */
   bucket?: string;
@@ -106,7 +106,7 @@ export class SchiftTools {
     this.webSearchFn = webSearchFn ?? null;
     this.config = {
       collection: config.collection ?? "",
-      bucket: config.bucket ?? config.bucketId ?? "",
+      bucket: config.bucket ?? config.bucketId ?? config.collection ?? "",
       bucketId: config.bucket ?? config.bucketId ?? "",
       topK: config.topK ?? 7,
       includeChat: config.includeChat ?? false,
@@ -125,7 +125,7 @@ export class SchiftTools {
         function: {
           name: `${this.config.prefix}_search`,
           description:
-            "Search through uploaded company documents. Returns relevant text passages with source citations and relevance scores.",
+            "Search through uploaded company documents in a Schift bucket. Returns relevant text passages with source citations and relevance scores.",
           parameters: {
             type: "object",
             properties: {
@@ -133,12 +133,16 @@ export class SchiftTools {
                 type: "string",
                 description: "The search query in natural language",
               },
+              bucket: {
+                type: "string",
+                description: "Document bucket to search in",
+                ...(this.config.bucket
+                  ? { default: this.config.bucket }
+                  : {}),
+              },
               collection: {
                 type: "string",
-                description: "Document collection to search in",
-                ...(this.config.collection
-                  ? { default: this.config.collection }
-                  : {}),
+                description: "Deprecated alias for bucket",
               },
               top_k: {
                 type: "number",
@@ -212,7 +216,7 @@ export class SchiftTools {
       {
         name: `${this.config.prefix}_search`,
         description:
-          "Search through uploaded company documents. Returns relevant text passages with source citations and relevance scores.",
+          "Search through uploaded company documents in a Schift bucket. Returns relevant text passages with source citations and relevance scores.",
         input_schema: {
           type: "object",
           properties: {
@@ -220,9 +224,13 @@ export class SchiftTools {
               type: "string",
               description: "The search query in natural language",
             },
+            bucket: {
+              type: "string",
+              description: "Document bucket to search in",
+            },
             collection: {
               type: "string",
-              description: "Document collection to search in",
+              description: "Deprecated alias for bucket",
             },
             top_k: {
               type: "number",
@@ -292,7 +300,8 @@ export class SchiftTools {
           type: "object",
           properties: {
             query: { type: "string", description: "Search query" },
-            collection: { type: "string", description: "Collection name" },
+            bucket: { type: "string", description: "Bucket name or ID" },
+            collection: { type: "string", description: "Deprecated alias for bucket" },
             top_k: { type: "number", description: "Number of results" },
           },
           required: ["query"],
@@ -401,7 +410,7 @@ export class SchiftTools {
   ): Promise<SearchResult[]> {
     return this.searchFn({
       query: args.query as string,
-      collection: (args.collection as string) || this.config.collection,
+      bucket: (args.bucket as string) || (args.collection as string) || this.config.bucket || this.config.collection,
       topK: (args.top_k as number) || this.config.topK,
     });
   }
