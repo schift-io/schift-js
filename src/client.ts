@@ -907,7 +907,11 @@ export class Schift {
     targetModel: string;
     sampleRatios?: number[];
     queryCount?: number;
-    corpusCount?: number;
+    bucketDocumentCount?: number;
+    bucketDocumentIds?: string[];
+    queryIds?: string[];
+    qrels?: Record<string, string[]>;
+    artifactRefs?: Record<string, string>;
   }): Promise<any> {
     return this.post("/v1/benchmark-suites", {
       name: request.name,
@@ -915,7 +919,11 @@ export class Schift {
       target_model: request.targetModel,
       sample_ratios: request.sampleRatios,
       query_count: request.queryCount,
-      corpus_count: request.corpusCount,
+      bucket_document_count: request.bucketDocumentCount,
+      bucket_document_ids: request.bucketDocumentIds,
+      query_ids: request.queryIds,
+      qrels: request.qrels,
+      artifact_refs: request.artifactRefs,
     });
   }
   async listBenchmarkSuites(): Promise<any[]> {

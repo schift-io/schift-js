@@ -1,6 +1,6 @@
 {
   "name": "@schift-io/sdk",
-  "version": "0.7.0",
+  "version": "0.7.2",
   "description": "Schift TypeScript SDK for embeddings, search, RAG chat, and workflows",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -45,7 +45,7 @@
   "homepage": "https://schift.io",
   "repository": {
     "type": "git",
-    "url": "https://github.com/schift-io/schift-ts"
+    "url": "git+https://github.com/schift-io/schift-ts.git"
   },
   "peerDependencies": {
     "js-yaml": ">=4.0.0",

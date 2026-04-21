@@ -102,6 +102,24 @@ const fresh = await webSearch.search("Schift framework launch updates");
 
 Tool calling helpers created from `client.tools` include `schift_web_search` by default, so OpenAI/Claude/Vercel AI SDK integrations can call live web search without extra wiring.
 
+### BYOK (Bring Your Own LLM Key)
+
+Register your own OpenAI / Google / Anthropic key so `/v1/chat` and `/v1/chat/completions` call the provider directly instead of consuming Schift Cloud's shared LLM quota. Supported providers: `"openai"`, `"google"`, `"anthropic"`.
+
+```typescript
+// Register a key
+await client.providers.set("google", {
+  api_key: process.env.GOOGLE_API_KEY!,
+  // endpoint_url: "https://custom-proxy.example.com",  // optional
+});
+
+// Check whether a provider is configured (api_key is never returned)
+const status = await client.providers.get("openai");
+// { provider: "openai", configured: true | false, endpoint_url: string | null }
+```
+
+Rotation: a stored BYOK record **shadows** any server-side env var or secret for that provider. To rotate, call `set()` again with the new key — changing env vars alone has no effect on orgs with a BYOK record.
+
 ### Agent SDK Compatibility
 
 Schift sits underneath the agent framework. The integration point is always the same:
@@ -228,7 +246,64 @@ await client.deleteCollection("bucket-id");
 
 Build and run RAG pipelines as composable DAGs.
 
-#### Quick Start
+#### One-block RAG (recommended)
+
+`BlockType.RAG` is a single composite block that does retrieve + prompt + LLM
+inline. No graph wiring required.
+
+```typescript
+import { Schift, BlockType } from "@schift-io/sdk";
+
+const schift = new Schift({ apiKey: process.env.SCHIFT_API_KEY! });
+
+const wf = await schift.workflows.create({ name: "fire-code-qa" });
+await schift.workflows.addBlock(wf.id, {
+  type: BlockType.RAG,
+  config: { collection: "fire-code" }, // bucket name is the only required field
+});
+
+const run = await schift.workflows.run(wf.id, {
+  query: "소방 설비는 얼마나 자주 점검해야 하나요?",
+});
+// run.outputs → { answer, sources, text, data, usage, results }
+```
+
+Advanced config (all optional, sensible defaults): `top_k`, `mode`, `filter`,
+`rerank`, `model`, `temperature`, `max_tokens`, `thinking_budget`,
+`system_prompt`, `template`, `response_schema`, `include_sources`.
+
+Runtime overrides (passed via `workflows.run()` inputs): `bucket`, `filter`,
+`tags`, `top_k`, `response_schema`.
+
+#### Direct RAG endpoint (skip workflow entirely)
+
+When you don't need a persisted workflow record, hit `/v1/rag/run` directly —
+shares the same code path, less overhead, structured output supported.
+
+```typescript
+const resp = await fetch("https://api.schift.io/v1/rag/run", {
+  method: "POST",
+  headers: {
+    Authorization: `Bearer ${process.env.SCHIFT_API_KEY}`,
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({
+    query: "소방 점검 주기?",
+    bucket: "fire-code",
+    response_schema: {
+      type: "object",
+      properties: { months: { type: "integer" }, cite: { type: "string" } },
+    },
+  }),
+});
+const { answer, data, sources } = await resp.json();
+```
+
+#### Legacy multi-block pipelines
+
+For custom pipelines (multi-source merge, conditional routing, tool use) you
+can still build the graph from primitive blocks (`retriever`, `llm`,
+`prompt_template`, etc.).
 
 ```typescript
 // Create from template or blank
