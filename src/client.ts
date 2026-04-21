@@ -187,21 +187,21 @@ export class Schift {
 
   // ---- Bucket resolution ----
 
-  /** Bucket list cache; avoids redundant API calls within a single client instance. */
+  /** Bucket list cache — avoids redundant API calls within a single client instance. */
   private _bucketCache: Array<{ id: string; name: string }> | null = null;
   private _bucketCacheTs = 0;
 
   /**
    * Resolve a bucket name-or-ID to an actual bucket ID.
-   * - 32-char hex string -> treated as UUID, used as-is
-   * - Anything else -> looked up by name from /v1/buckets
+   * - 32-char hex string → treated as UUID, used as-is
+   * - Anything else → looked up by name from /v1/buckets
    */
   private async _resolveBucket(nameOrId: string): Promise<string> {
     // UUID pattern: 32 hex chars (with or without dashes)
     const hex = nameOrId.replace(/-/g, "");
     if (/^[0-9a-f]{32}$/i.test(hex)) return hex;
 
-    // Name lookup
+    // Name → lookup
     const now = Date.now();
     if (!this._bucketCache || now - this._bucketCacheTs > 30_000) {
       this._bucketCache =
@@ -315,7 +315,7 @@ export class Schift {
    * @example
    * ```ts
    * const result = await client.chat({
-   *   bucket: "my-bucket",        // name or ID; both work
+   *   bucket: "my-bucket",        // name or ID — both work
    *   message: "how do I reset my password?",
    * });
    * console.log(result.reply, result.sources);

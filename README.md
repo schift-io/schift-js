@@ -16,7 +16,7 @@ import { Schift } from "@schift-io/sdk";
 const client = new Schift({ apiKey: "sch_your_api_key" });
 
 // Create or reuse a bucket, upload a document, then search it.
-// All bucket methods accept a name or ID; no need to track UUIDs.
+// All bucket methods accept a name or ID — no need to track UUIDs.
 await client.createBucket({ name: "company-docs" });
 const file = new File([await readFile("manual.pdf")], "manual.pdf", {
   type: "application/pdf",
@@ -107,7 +107,7 @@ Tool calling helpers created from `client.tools` include `schift_web_search` by 
 Schift sits underneath the agent framework. The integration point is always the same:
 
 1. let the agent call a Schift search tool
-2. run retrieval against Schift buckets
+2. run retrieval against Schift buckets or buckets
 3. return grounded chunks back to the model
 
 That means you can keep your preferred agent SDK and swap only the retrieval layer.

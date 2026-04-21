@@ -441,9 +441,10 @@ describe("WorkflowClient", () => {
 // =====================================================================
 
 describe("Type constants", () => {
-  it("BlockType has all 30 block types", () => {
+  it("BlockType has all 31 block types", () => {
     const types = Object.values(BlockType);
-    expect(types).toHaveLength(30);
+    expect(types).toHaveLength(31);
+    expect(types).toContain("rag");
     expect(types).toContain("start");
     expect(types).toContain("end");
     expect(types).toContain("document_loader");

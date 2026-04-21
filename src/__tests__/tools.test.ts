@@ -162,9 +162,9 @@ describe("SchiftTools", () => {
       await expect(tools.handle({} as any)).rejects.toThrow("Unrecognized");
     });
 
-    it("uses collection as a deprecated bucket fallback", async () => {
+    it("uses default bucket from config", async () => {
       mockSearch.mockClear();
-      const tools = createTools({ bucketId: "", collection: "legal-docs" });
+      const tools = createTools({ bucket: "legal-docs" });
       await tools.handle({
         function: {
           name: "schift_search",

@@ -14,6 +14,7 @@ export const BlockType = {
   RERANKER: "reranker",
   LLM: "llm",
   PROMPT_TEMPLATE: "prompt_template",
+  RAG: "rag",
   CONDITION: "condition",
   ROUTER: "router",
   AI_ROUTER: "ai_router",
