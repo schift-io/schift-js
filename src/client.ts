@@ -32,7 +32,7 @@ import { SchiftTools } from "./tools.js";
 
 const DEFAULT_BASE_URL = "https://api.schift.io";
 const DEFAULT_TIMEOUT = 60_000;
-const VERSION = "0.3.1";
+const VERSION = "0.8.0";
 
 export class Schift {
   private readonly apiKey: string;
