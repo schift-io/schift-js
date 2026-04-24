@@ -88,7 +88,21 @@ export class Schift {
   readonly db: {
     upload(
       bucket: string,
-      options: { files: File[] | Blob[] },
+      options: {
+        files: File[] | Blob[];
+        /**
+         * Per-upload metadata attached to every chunk of every file in this
+         * call. Values are coerced to strings server-side. Use for filtering
+         * at search time via `filter: { key: value }`.
+         *
+         * Limits: up to 32 keys, keys match `[A-Za-z0-9_.-]+` and are ≤64
+         * chars, values are ≤512 chars, total JSON ≤4 KB. Reserved keys
+         * (`document_id`, `chunk_id`, `bucket_id`, `text`, …) are rejected.
+         *
+         * @example { week: "18", team: "growth" }
+         */
+        metadata?: Record<string, string | number | boolean>;
+      },
     ): Promise<BucketUploadResult>;
   };
 
@@ -471,7 +485,10 @@ export class Schift {
    */
   private async _dbUpload(
     bucket: string,
-    options: { files: File[] | Blob[] },
+    options: {
+      files: File[] | Blob[];
+      metadata?: Record<string, string | number | boolean>;
+    },
   ): Promise<BucketUploadResult> {
     // 1. Get or create bucket
     const buckets =
@@ -487,11 +504,17 @@ export class Schift {
       bucketId = created.id;
     }
 
+    const metadataJson =
+      options.metadata && Object.keys(options.metadata).length > 0
+        ? JSON.stringify(options.metadata)
+        : null;
+
     // 2. Upload each file via multipart/form-data
     const uploaded: unknown[] = [];
     for (const file of options.files) {
       const form = new FormData();
       form.append("files", file);
+      if (metadataJson) form.append("metadata", metadataJson);
 
       const resp = await fetch(
         `${this.baseUrl}/v1/buckets/${bucketId}/upload`,
