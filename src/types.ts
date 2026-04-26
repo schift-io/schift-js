@@ -247,3 +247,91 @@ export interface ChatStreamEvent {
   duration_ms?: number;
   result_count?: number;
 }
+
+// ---- Decision Review (adversarial RAG) ----
+
+export type DecisionReviewPersonaRole =
+  | "lawyer"
+  | "doctor"
+  | "analyst"
+  | "auditor"
+  | "custom";
+
+export interface DecisionReviewScenario {
+  /** Facts / patient / target / control. */
+  subject: string;
+  /** Client position / clinical concern / mandate / requirement. */
+  perspective: string;
+  /** The decision to make. */
+  coreQuestion: string;
+}
+
+export interface DecisionReviewPersona {
+  role: DecisionReviewPersonaRole;
+  /** Output language code (e.g. "ko", "en"). */
+  language?: string;
+  /** Optional override for sub-issue decomposition phrasing. */
+  decompositionHint?: string;
+}
+
+export interface DecisionReviewRequest {
+  scenario: DecisionReviewScenario;
+  /** Engine bucket / collection ID containing the corpus. */
+  corpusId: string;
+  persona?: DecisionReviewPersona;
+  maxSubIssues?: number;
+  kPerSubIssue?: number;
+  favorableDisplayCap?: number;
+  counterDisplayCap?: number;
+  /** Use engine hybrid search (BM25 + vector RRF) when available. Default true. */
+  useHybrid?: boolean;
+  /** Optional metadata equality filter applied at engine search time. */
+  metadataFilter?: Record<string, string>;
+}
+
+export type DecisionReviewStreamEvent =
+  | { type: "decompose"; data: { decompose_ms: number; sub_issues: Array<{ id?: string; summary?: string; search_query?: string }> } }
+  | { type: "sub_issue"; data: DecisionReviewSubIssue }
+  | { type: "verbatim"; data: DecisionReviewVerbatim }
+  | { type: "done"; data: DecisionReviewResponse }
+  | { type: "error"; data: { message: string } };
+
+export interface DecisionReviewPrecedent {
+  chunk_id: string;
+  title: string;
+  citation: string;
+  score: number;
+  excerpt: string;
+  polarity_reason: string;
+}
+
+export interface DecisionReviewSubIssue {
+  sub_issue_id: string;
+  summary: string;
+  search_query: string;
+  favorable: DecisionReviewPrecedent[];
+  counter: DecisionReviewPrecedent[];
+  neutral_count: number;
+  n_classified: number;
+}
+
+export interface DecisionReviewVerbatim {
+  citations_found: number;
+  citations_failed: number;
+  failed_citations: string[];
+}
+
+export interface DecisionReviewResponse {
+  scenario_id: string;
+  sub_issues: DecisionReviewSubIssue[];
+  verbatim: DecisionReviewVerbatim;
+  timing_ms: Record<string, number>;
+  corpus_id: string;
+  persona_role: string;
+}
+
+export interface DecisionReviewSubstrate {
+  corpus_id: string;
+  description: string;
+  default_persona: [string, string];
+}

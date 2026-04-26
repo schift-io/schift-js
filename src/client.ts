@@ -653,6 +653,140 @@ export class Schift {
     });
   }
 
+  // ---- Decision Review (adversarial RAG) ----
+
+  /**
+   * Run an adversarial decision review against a Schift engine collection.
+   * The pipeline decomposes the scenario into sub-issues, retrieves per
+   * sub-issue, classifies each retrieved chunk into supporting / counter /
+   * neutral, and verbatim-verifies citations.
+   *
+   * Substrates have to be ingested ahead of time (see /v1/legal/ingest-corpus
+   * Admin API). List available built-in substrates with `listSubstrates()`.
+   */
+  async decisionReview(
+    request: import("./types.js").DecisionReviewRequest,
+  ): Promise<import("./types.js").DecisionReviewResponse> {
+    const persona = request.persona;
+    const body: Record<string, unknown> = {
+      scenario: {
+        subject: request.scenario.subject,
+        perspective: request.scenario.perspective,
+        core_question: request.scenario.coreQuestion,
+      },
+      corpus_id: request.corpusId,
+    };
+    if (persona) {
+      body.persona = {
+        role: persona.role,
+        ...(persona.language ? { language: persona.language } : {}),
+        ...(persona.decompositionHint
+          ? { decomposition_hint: persona.decompositionHint }
+          : {}),
+      };
+    }
+    if (request.maxSubIssues !== undefined) body.max_sub_issues = request.maxSubIssues;
+    if (request.kPerSubIssue !== undefined) body.k_per_sub_issue = request.kPerSubIssue;
+    if (request.favorableDisplayCap !== undefined)
+      body.favorable_display_cap = request.favorableDisplayCap;
+    if (request.counterDisplayCap !== undefined)
+      body.counter_display_cap = request.counterDisplayCap;
+    if (request.useHybrid !== undefined) body.use_hybrid = request.useHybrid;
+    if (request.metadataFilter) body.metadata_filter = request.metadataFilter;
+    return this.post("/v1/decision-review", body);
+  }
+
+  /**
+   * Streaming variant of decisionReview() — yields events as the pipeline
+   * runs (decompose → sub_issue × N → verbatim → done). UX win for the
+   * 6-10s end-to-end latency.
+   */
+  async *decisionReviewStream(
+    request: import("./types.js").DecisionReviewRequest,
+  ): AsyncGenerator<import("./types.js").DecisionReviewStreamEvent> {
+    const persona = request.persona;
+    const body: Record<string, unknown> = {
+      scenario: {
+        subject: request.scenario.subject,
+        perspective: request.scenario.perspective,
+        core_question: request.scenario.coreQuestion,
+      },
+      corpus_id: request.corpusId,
+    };
+    if (persona) {
+      body.persona = {
+        role: persona.role,
+        ...(persona.language ? { language: persona.language } : {}),
+        ...(persona.decompositionHint
+          ? { decomposition_hint: persona.decompositionHint }
+          : {}),
+      };
+    }
+    if (request.maxSubIssues !== undefined) body.max_sub_issues = request.maxSubIssues;
+    if (request.kPerSubIssue !== undefined) body.k_per_sub_issue = request.kPerSubIssue;
+    if (request.favorableDisplayCap !== undefined)
+      body.favorable_display_cap = request.favorableDisplayCap;
+    if (request.counterDisplayCap !== undefined)
+      body.counter_display_cap = request.counterDisplayCap;
+    if (request.useHybrid !== undefined) body.use_hybrid = request.useHybrid;
+    if (request.metadataFilter) body.metadata_filter = request.metadataFilter;
+
+    const url = `${this.baseUrl}/v1/decision-review/stream`;
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${this.apiKey}`,
+        Accept: "text/event-stream",
+      },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok || !res.body) {
+      throw new Error(`decisionReviewStream HTTP ${res.status}`);
+    }
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder("utf-8");
+    let buf = "";
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        // SSE frames are separated by blank lines.
+        let nl: number;
+        while ((nl = buf.indexOf("\n\n")) !== -1) {
+          const frame = buf.slice(0, nl);
+          buf = buf.slice(nl + 2);
+          const lines = frame.split("\n");
+          let event = "message";
+          let data = "";
+          for (const line of lines) {
+            if (line.startsWith("event:")) event = line.slice(6).trim();
+            else if (line.startsWith("data:")) data += line.slice(5).trim();
+          }
+          if (!data) continue;
+          try {
+            const parsed = JSON.parse(data);
+            yield { type: event, data: parsed } as import(
+              "./types.js"
+            ).DecisionReviewStreamEvent;
+          } catch {
+            // skip malformed frame
+          }
+        }
+      }
+    } finally {
+      reader.releaseLock();
+    }
+  }
+
+  /** Enumerate built-in substrates available to the caller. */
+  async listSubstrates(): Promise<{
+    substrates: import("./types.js").DecisionReviewSubstrate[];
+  }> {
+    return this.get("/v1/decision-review/substrates");
+  }
+
   // ---- Legacy collection aliases ----
   /** @deprecated Use createBucket() when possible. */
   async createCollection(request: {
