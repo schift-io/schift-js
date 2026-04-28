@@ -33,6 +33,25 @@ export const BlockType = {
   ANSWER: "answer",
   METADATA_EXTRACTOR: "metadata_extractor",
   WEB_SEARCH: "web_search",
+  // n8n-derived helpers (Core Nodes > Data Transformation / Flow / Triggers)
+  SET: "set",
+  FILTER: "filter",
+  SWITCH: "switch",
+  AGGREGATE: "aggregate",
+  SORT: "sort",
+  LIMIT: "limit",
+  SPLIT_OUT: "split_out",
+  SUMMARIZE: "summarize",
+  REMOVE_DUPLICATES: "remove_duplicates",
+  DATETIME: "datetime",
+  WAIT: "wait",
+  SCHEDULE_TRIGGER: "schedule_trigger",
+  MANUAL_TRIGGER: "manual_trigger",
+  // HITL (Human-in-the-Loop)
+  HUMAN_APPROVAL: "human_approval",
+  HUMAN_FORM: "human_form",
+  // RAG-native (Schift first-class)
+  DECISION_REVIEW: "decision_review",
 } as const;
 
 export type BlockType = (typeof BlockType)[keyof typeof BlockType];

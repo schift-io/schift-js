@@ -58,6 +58,26 @@ import { WebSearchNode } from "./web-search.js";
 // ---- Tier 3: Server-only ----
 import { ServerOnlyNode } from "./server-only.js";
 
+// ---- Tier 1: n8n-derived helpers ----
+import {
+  SetNode,
+  FilterNode,
+  SwitchNode,
+  AggregateNode,
+  SortNode,
+  LimitNode,
+  SplitOutNode,
+  SummarizeNode,
+  RemoveDuplicatesNode,
+  DateTimeNode,
+  WaitNode,
+  ScheduleTriggerNode,
+  ManualTriggerNode,
+  HumanApprovalNode,
+  HumanFormNode,
+  DecisionReviewNode,
+} from "./transform-extras.js";
+
 // ---- Registry ----
 
 import { SDKBaseNode } from "./base.js";
@@ -100,6 +120,23 @@ const BUILTIN_HANDLERS: Record<string, new (block: BlockDef) => SDKBaseNode> = {
   ingest_bridge: ServerOnlyNode,
   feed_poll: ServerOnlyNode,
   notify: PassthroughNode,
+  // Tier 1 -- n8n-derived helpers
+  set: SetNode,
+  filter: FilterNode,
+  switch: SwitchNode,
+  aggregate: AggregateNode,
+  sort: SortNode,
+  limit: LimitNode,
+  split_out: SplitOutNode,
+  summarize: SummarizeNode,
+  remove_duplicates: RemoveDuplicatesNode,
+  datetime: DateTimeNode,
+  wait: WaitNode,
+  schedule_trigger: ScheduleTriggerNode,
+  manual_trigger: ManualTriggerNode,
+  human_approval: HumanApprovalNode,
+  human_form: HumanFormNode,
+  decision_review: DecisionReviewNode,
 };
 
 const CUSTOM_NODES: Record<

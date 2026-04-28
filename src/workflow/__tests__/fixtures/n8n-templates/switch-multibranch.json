@@ -1,0 +1,74 @@
+{
+  "name": "Switch Multi-branch",
+  "nodes": [
+    {
+      "id": "wh-1",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [200, 300],
+      "parameters": { "httpMethod": "POST", "path": "incoming" }
+    },
+    {
+      "id": "sw-1",
+      "name": "Route",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [420, 300],
+      "parameters": {
+        "rules": {
+          "values": [
+            { "outputKey": "high", "conditions": {} },
+            { "outputKey": "med", "conditions": {} },
+            { "outputKey": "low", "conditions": {} }
+          ]
+        }
+      }
+    },
+    {
+      "id": "h-high",
+      "name": "Handle High",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [640, 200],
+      "parameters": { "method": "POST", "url": "https://x/high" }
+    },
+    {
+      "id": "h-med",
+      "name": "Handle Med",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [640, 300],
+      "parameters": { "method": "POST", "url": "https://x/med" }
+    },
+    {
+      "id": "h-low",
+      "name": "Handle Low",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [640, 400],
+      "parameters": { "method": "POST", "url": "https://x/low" }
+    },
+    {
+      "id": "h-default",
+      "name": "Handle Default",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [640, 500],
+      "parameters": { "method": "POST", "url": "https://x/default" }
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [[{ "node": "Route", "type": "main", "index": 0 }]]
+    },
+    "Route": {
+      "main": [
+        [{ "node": "Handle High", "type": "main", "index": 0 }],
+        [{ "node": "Handle Med", "type": "main", "index": 0 }],
+        [{ "node": "Handle Low", "type": "main", "index": 0 }],
+        [{ "node": "Handle Default", "type": "main", "index": 0 }]
+      ]
+    }
+  }
+}

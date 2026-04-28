@@ -1,0 +1,75 @@
+{
+  "name": "Scheduled Sync",
+  "nodes": [
+    {
+      "id": "trig-1",
+      "name": "Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [240, 300],
+      "parameters": {
+        "rule": { "interval": [{ "field": "hours", "hoursInterval": 6 }] }
+      }
+    },
+    {
+      "id": "set-1",
+      "name": "Set Headers",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [460, 300],
+      "parameters": {
+        "values": {
+          "string": [{ "name": "x-source", "value": "schift" }]
+        }
+      }
+    },
+    {
+      "id": "http-1",
+      "name": "Fetch",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [680, 300],
+      "parameters": { "method": "GET", "url": "https://api.example.com/data" }
+    },
+    {
+      "id": "filt-1",
+      "name": "Filter Active",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 1,
+      "position": [900, 300],
+      "parameters": {
+        "conditions": { "string": [{ "value1": "={{$json.status}}", "value2": "active" }] }
+      }
+    },
+    {
+      "id": "agg-1",
+      "name": "Aggregate",
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [1120, 300],
+      "parameters": { "aggregate": "aggregateAllItemData" }
+    },
+    {
+      "id": "note-1",
+      "name": "Sticky",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [240, 100],
+      "parameters": { "content": "Runs every 6h" }
+    }
+  ],
+  "connections": {
+    "Schedule": {
+      "main": [[{ "node": "Set Headers", "type": "main", "index": 0 }]]
+    },
+    "Set Headers": {
+      "main": [[{ "node": "Fetch", "type": "main", "index": 0 }]]
+    },
+    "Fetch": {
+      "main": [[{ "node": "Filter Active", "type": "main", "index": 0 }]]
+    },
+    "Filter Active": {
+      "main": [[{ "node": "Aggregate", "type": "main", "index": 0 }]]
+    }
+  }
+}

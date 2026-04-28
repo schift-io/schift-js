@@ -67,3 +67,52 @@ export {
   unregisterCustomNode,
   getNodeHandler,
 } from "./nodes.js";
+
+// ---- Connection Types (typed ports for node I/O) ----
+export {
+  ConnectionTypes,
+  ConnectionFamilies,
+  allConnectionTypes,
+  familyOf,
+  isCompatible,
+} from "./connection-types.js";
+export type {
+  ConnectionType,
+  AIConnectionType,
+  ConnectionFamily,
+} from "./connection-types.js";
+
+// ---- Node Descriptor (UI form schema + codex metadata, n8n-derived) ----
+export { mainPort, sidecarPort } from "./descriptor.js";
+export type {
+  INodeDescriptor,
+  INodeProperty,
+  PropertyType,
+  PropertyTypeOptions,
+  DisplayOptions,
+  NodeCodex,
+  BuilderHint,
+  PortDescriptor,
+  NodeGroup,
+} from "./descriptor.js";
+
+// ---- Descriptor Registry (lookup / search / category grouping) ----
+export {
+  Category,
+  getDescriptor,
+  listDescriptors,
+  descriptorsByCategory,
+  searchDescriptors,
+  descriptorsByCategoryGrouped,
+} from "./descriptors.js";
+export type { CategoryName } from "./descriptors.js";
+
+// ---- n8n Workflow Importer ----
+export { importN8nWorkflow } from "./n8n-import.js";
+export type {
+  N8nWorkflow,
+  N8nNode,
+  N8nConnections,
+  N8nConnectionTarget,
+  N8nImportResult,
+} from "./n8n-import.js";

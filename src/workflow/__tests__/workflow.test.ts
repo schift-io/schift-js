@@ -441,12 +441,19 @@ describe("WorkflowClient", () => {
 // =====================================================================
 
 describe("Type constants", () => {
-  it("BlockType has all 31 block types", () => {
+  it("BlockType covers core RAG + flow + n8n-derived helpers", () => {
     const types = Object.values(BlockType);
-    expect(types).toHaveLength(31);
+    expect(types.length).toBeGreaterThanOrEqual(47);
     expect(types).toContain("rag");
     expect(types).toContain("start");
     expect(types).toContain("end");
+    // n8n-derived helpers (Section 4 of n8n-catalog-mapping.md)
+    expect(types).toContain("set");
+    expect(types).toContain("filter");
+    expect(types).toContain("switch");
+    expect(types).toContain("aggregate");
+    expect(types).toContain("human_approval");
+    expect(types).toContain("decision_review");
     expect(types).toContain("document_loader");
     expect(types).toContain("chunker");
     expect(types).toContain("embedder");
