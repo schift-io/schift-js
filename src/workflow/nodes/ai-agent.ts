@@ -59,7 +59,7 @@ export class AIAgentNode extends SDKBaseNode {
 
     const i = inputs as AgentInputs;
     const userPrompt = i.prompt ?? i.text ?? i.query ?? i.in ?? "";
-    const lm = i.agent_languageModel;
+    let lm = i.agent_languageModel;
     const memory = i.agent_memory;
     const tools = Array.isArray(i.agent_tool)
       ? i.agent_tool
@@ -70,11 +70,23 @@ export class AIAgentNode extends SDKBaseNode {
     if (!userPrompt) {
       return this.failure(onError, "Main input is empty — agent has no prompt to act on.");
     }
+    // Sidecar-less fallback chain — useful for editor preview / smoke runs
+    // where the user hasn't connected a Language Model node yet:
+    //   GOOGLE_API_KEY env  → Google gemini-2.5-flash-lite (matches LLMNode default)
+    //   OLLAMA_BASE_URL env → local Ollama (free)
+    //   neither             → fail with the clear "connect a LM node" message
     if (!lm || !lm.provider) {
-      return this.failure(
-        onError,
-        "agent_languageModel sidecar is required. Connect a Language Model node to this agent.",
-      );
+      if (process.env.GOOGLE_API_KEY) {
+        lm = { provider: "google", model: "gemini-2.5-flash-lite" };
+      } else if (process.env.OLLAMA_BASE_URL || process.env.OLLAMA_HOST) {
+        lm = { provider: "ollama" };
+      } else {
+        return this.failure(
+          onError,
+          "agent_languageModel sidecar is required. Connect a Language Model node to this agent, " +
+            "or set GOOGLE_API_KEY / OLLAMA_BASE_URL for a default fallback.",
+        );
+      }
     }
 
     // Render tools into the system prompt so the model "knows" them even
@@ -195,13 +207,13 @@ function defaultModel(provider: string): string {
     case "anthropic":
       return "claude-haiku-4-5-20251001";
     case "google":
-      return "gemini-2.5-flash";
+      return "gemini-2.5-flash-lite";
     case "ollama":
       return "llama3";
     case "schift":
       return "schift-default";
     default:
-      return "gpt-4o-mini";
+      return "gemini-2.5-flash-lite";
   }
 }
 

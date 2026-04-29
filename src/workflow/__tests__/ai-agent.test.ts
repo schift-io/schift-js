@@ -148,11 +148,45 @@ describe("AIAgentNode", () => {
     expect(out.error).toMatch(/prompt/i);
   });
 
-  it("requires agent_languageModel sidecar", async () => {
-    const node = makeNode({ onError: "empty" });
-    const out = await node.execute({ prompt: "hi" }, ctx);
-    expect(out.finishReason).toBe("error");
-    expect(out.error).toMatch(/agent_languageModel/);
+  it("requires agent_languageModel sidecar (no env fallback)", async () => {
+    const savedGoogle = process.env.GOOGLE_API_KEY;
+    const savedOllamaBase = process.env.OLLAMA_BASE_URL;
+    const savedOllamaHost = process.env.OLLAMA_HOST;
+    delete process.env.GOOGLE_API_KEY;
+    delete process.env.OLLAMA_BASE_URL;
+    delete process.env.OLLAMA_HOST;
+    try {
+      const node = makeNode({ onError: "empty" });
+      const out = await node.execute({ prompt: "hi" }, ctx);
+      expect(out.finishReason).toBe("error");
+      expect(out.error).toMatch(/agent_languageModel/);
+    } finally {
+      if (savedGoogle !== undefined) process.env.GOOGLE_API_KEY = savedGoogle;
+      if (savedOllamaBase !== undefined) process.env.OLLAMA_BASE_URL = savedOllamaBase;
+      if (savedOllamaHost !== undefined) process.env.OLLAMA_HOST = savedOllamaHost;
+    }
+  });
+
+  it("falls back to Google gemini-2.5-flash-lite when GOOGLE_API_KEY env set and no LM sidecar", async () => {
+    const fetchMock = mockFetchOk("hi", 5);
+    globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
+    const saved = process.env.GOOGLE_API_KEY;
+    process.env.GOOGLE_API_KEY = "env-google-key";
+    try {
+      const node = makeNode();
+      const out = await node.execute({ prompt: "hi" }, ctx);
+      expect(out.answer).toBe("hi");
+      const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+      expect(url).toContain("generativelanguage.googleapis.com");
+      const body = JSON.parse((init as RequestInit).body as string);
+      expect(body.model).toBe("gemini-2.5-flash-lite");
+      expect((init.headers as Record<string, string>).Authorization).toBe(
+        "Bearer env-google-key",
+      );
+    } finally {
+      if (saved !== undefined) process.env.GOOGLE_API_KEY = saved;
+      else delete process.env.GOOGLE_API_KEY;
+    }
   });
 
   it("accepts a single tool object (not just array)", async () => {
