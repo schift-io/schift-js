@@ -28,6 +28,7 @@ import { WorkflowClient } from "./workflow/client.js";
 import type { HttpTransport } from "./workflow/client.js";
 import { AgentsClient } from "./agents/client.js";
 import { ProvidersClient } from "./providers/client.js";
+import { MigrateClient } from "./migrate/client.js";
 import { SchiftTools } from "./tools.js";
 
 const DEFAULT_BASE_URL = "https://api.schift.io";
@@ -144,6 +145,18 @@ export class Schift {
   readonly providers: ProvidersClient;
 
   /**
+   * Migration client — vectors-in migration (pgvector / chroma / pinecone /
+   * weaviate → schift-embed-1 hub).
+   *
+   * @example
+   * ```ts
+   * const q = await schift.migrate.quote({ source: { kind: "pgvector", config: { dsn, table } } });
+   * const job = await schift.migrate.start({ source, target_collection_id: "col_x" });
+   * ```
+   */
+  readonly migrate: MigrateClient;
+
+  /**
    * HTTP transport for agent/RAG use.
    *
    * @example
@@ -177,6 +190,7 @@ export class Schift {
     this.workflows = new WorkflowClient(this.transport);
     this.agents = new AgentsClient(this.transport);
     this.providers = new ProvidersClient(this.transport);
+    this.migrate = new MigrateClient(this.transport);
 
     // models sub-module — model catalog browsing
     this.models = {

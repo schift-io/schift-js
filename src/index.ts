@@ -100,6 +100,20 @@ export type {
   SetProviderKeyRequest,
 } from "./providers/index.js";
 
+// ---- Migrate (vectors-in → schift hub) ----
+export { MigrateClient } from "./migrate/index.js";
+export type {
+  ConnectorKind,
+  SourceConfig,
+  FeasibilityRequest,
+  FeasibilityResponse,
+  QuoteRequest,
+  QuoteResponse,
+  StartRequest,
+  StartResponse,
+  JobStatus,
+} from "./migrate/index.js";
+
 // ---- Managed Agents ----
 export { AgentsClient, RunsClient } from "./agents/index.js";
 export type {
