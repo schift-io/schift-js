@@ -912,6 +912,119 @@ register(
 
 register(
   descriptor({
+    name: BlockType.AI_AGENT,
+    displayName: "AI Agent",
+    description:
+      "ReAct-loop agent. Pulls a Language Model (required) + optional Memory and Tools via sidecar ports; takes a Main input prompt and emits the final answer.",
+    icon: "node:ai-agent",
+    iconColor: "#8b5cf6",
+    group: ["transform"],
+    codex: {
+      categories: [Category.Agent],
+      subcategories: { Agent: ["Agents", "Root Nodes"] },
+      alias: [
+        "agent",
+        "react",
+        "react-loop",
+        "tool-use",
+        "ai",
+        "autonomous",
+        "openai-agent",
+        "langchain-agent",
+      ],
+      resources: {
+        primaryDocumentation: [
+          { url: "https://docs.schift.io/agents/workflow-agent" },
+        ],
+      },
+    },
+    inputs: [
+      mainPort(),
+      sidecarPort(ConnectionTypes.AgentLanguageModel, { required: true }),
+      sidecarPort(ConnectionTypes.AgentMemory, { required: false }),
+      sidecarPort(ConnectionTypes.AgentTool, { required: false }),
+      sidecarPort(ConnectionTypes.AgentOutputParser, { required: false }),
+      sidecarPort(ConnectionTypes.AgentGuardrail, { required: false }),
+    ],
+    outputs: [mainPort()],
+    properties: [
+      {
+        displayName: "System Prompt",
+        name: "systemPrompt",
+        type: "string",
+        default: "You are a helpful assistant.",
+        typeOptions: { rows: 4 },
+        description:
+          "Top-level instruction. Each tool's description is appended automatically when the agent decides which tool to call.",
+      },
+      {
+        displayName: "Max Steps",
+        name: "maxSteps",
+        type: "number",
+        default: 10,
+        typeOptions: { minValue: 1, maxValue: 50 },
+        description:
+          "Hard ceiling on think→tool→observe iterations. The loop stops at the first final answer or when this limit is hit.",
+      },
+      {
+        displayName: "Token Budget",
+        name: "tokenBudget",
+        type: "number",
+        default: 0,
+        description: "0 = unlimited. Cumulative input+output tokens before the runtime aborts with TokenBudgetError.",
+      },
+      {
+        displayName: "Stream Events",
+        name: "streamEvents",
+        type: "boolean",
+        default: true,
+        description: "Emit per-step events to the workflow run log (think / tool_call / tool_result / final).",
+      },
+      {
+        displayName: "Failure Behaviour",
+        name: "onError",
+        type: "options",
+        default: "fail",
+        options: [
+          { name: "Fail the run", value: "fail" },
+          { name: "Return partial answer", value: "partial" },
+          { name: "Return empty answer", value: "empty" },
+        ],
+      },
+    ],
+    builderHint: {
+      message:
+        "Connect a Language Model node to the agent_languageModel sidecar (required). Connect a Memory node for multi-turn / conversation. Connect any number of Tool nodes (HTTP Request, Code, Sub-Workflow, MCP Client, RAG Search/Reranker, Decision Review). Main input carries the user prompt; Main output is the final answer string.",
+      relatedNodes: [
+        { nodeType: BlockType.LLM, relationHint: "Required upstream — provides the language model the agent calls." },
+        {
+          nodeType: BlockType.RETRIEVER,
+          relationHint:
+            "Wrap a Retriever as a tool to give the agent RAG search; it can be invoked mid-loop to fetch context.",
+        },
+        {
+          nodeType: BlockType.DECISION_REVIEW,
+          relationHint:
+            "Wrap Decision Review as a tool for adversarial second-opinion lookups inside the agent's reasoning.",
+        },
+        {
+          nodeType: BlockType.HTTP_REQUEST,
+          relationHint: "Generic escape hatch — expose any external API as a tool.",
+        },
+      ],
+      inputs: {
+        agent_languageModel: { required: true },
+        agent_memory: { required: false },
+        agent_tool: { required: false },
+        agent_outputParser: { required: false },
+        agent_guardrail: { required: false },
+      },
+    },
+  }),
+);
+
+register(
+  descriptor({
     name: BlockType.LLM,
     displayName: "Language Model",
     description: "Call an LLM (OpenAI, Anthropic, Google, Ollama, BYOK).",

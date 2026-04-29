@@ -52,6 +52,10 @@ export const BlockType = {
   HUMAN_FORM: "human_form",
   // RAG-native (Schift first-class)
   DECISION_REVIEW: "decision_review",
+  // Agent root node — runs a ReAct loop using sidecar AgentLanguageModel /
+  // AgentMemory / AgentTool ports. The workflow-level counterpart of the
+  // standalone Agent runtime in sdk/ts/src/agent/.
+  AI_AGENT: "ai_agent",
 } as const;
 
 export type BlockType = (typeof BlockType)[keyof typeof BlockType];

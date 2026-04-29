@@ -78,6 +78,9 @@ import {
   DecisionReviewNode,
 } from "./transform-extras.js";
 
+// ---- Tier 2: Agent (ReAct) ----
+import { AIAgentNode } from "./ai-agent.js";
+
 // ---- Registry ----
 
 import { SDKBaseNode } from "./base.js";
@@ -137,6 +140,8 @@ const BUILTIN_HANDLERS: Record<string, new (block: BlockDef) => SDKBaseNode> = {
   human_approval: HumanApprovalNode,
   human_form: HumanFormNode,
   decision_review: DecisionReviewNode,
+  // Tier 2 -- Agent (ReAct loop)
+  ai_agent: AIAgentNode,
 };
 
 const CUSTOM_NODES: Record<
