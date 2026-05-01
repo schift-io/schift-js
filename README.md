@@ -236,11 +236,31 @@ Examples:
 // List all buckets
 const buckets = await client.listBuckets();
 
+// Create a permission-scoped child collection inside a bucket
+const supportCollection = await client.createBucketCollection("company-docs", {
+  name: "support-only",
+  description: "Visible to support agents",
+});
+
+await client.db.upload("company-docs", {
+  files: [file],
+  collectionId: supportCollection.id,
+});
+
+await client.grantBucketCollectionAccess("company-docs", supportCollection.id, {
+  subjectType: "role",
+  subjectId: "support",
+});
+
+const collections = await client.listBucketCollections("company-docs");
+
 // Legacy collection aliases remain available for older integrations
 const col = await client.getCollection("bucket-id");
 
 await client.deleteCollection("bucket-id");
 ```
+
+Bucket search is permission-scoped: the server searches only the child collections the caller can access and merges the ranked results.
 
 ### Workflows
 

@@ -17,6 +17,9 @@ import type {
   ProjectRequest,
   ProjectResponse,
   BucketUploadResult,
+  BucketCollection,
+  CollectionGrant,
+  CollectionGrantRequest,
   ChatRequest,
   ChatResponse,
   ChatStreamEvent,
@@ -103,6 +106,7 @@ export class Schift {
          * @example { week: "18", team: "growth" }
          */
         metadata?: Record<string, string | number | boolean>;
+        collectionId?: string;
       },
     ): Promise<BucketUploadResult>;
   };
@@ -502,6 +506,7 @@ export class Schift {
     options: {
       files: File[] | Blob[];
       metadata?: Record<string, string | number | boolean>;
+      collectionId?: string;
     },
   ): Promise<BucketUploadResult> {
     // 1. Get or create bucket
@@ -529,6 +534,9 @@ export class Schift {
       const form = new FormData();
       form.append("files", file);
       if (metadataJson) form.append("metadata", metadataJson);
+      if (options.collectionId) {
+        form.append("collection_id", options.collectionId);
+      }
 
       const resp = await fetch(
         `${this.baseUrl}/v1/buckets/${bucketId}/upload`,
@@ -934,6 +942,35 @@ export class Schift {
     if (topK) params.set("top_k", String(topK));
     const qs = params.toString();
     return this.get(`/v1/buckets/${bucketId}/graph${qs ? `?${qs}` : ""}`);
+  }
+
+  async listBucketCollections(bucketOrName: string): Promise<BucketCollection[]> {
+    const bucketId = await this._resolveBucket(bucketOrName);
+    return this.get<BucketCollection[]>(`/v1/buckets/${bucketId}/collections`);
+  }
+
+  async createBucketCollection(
+    bucketOrName: string,
+    request: { name: string; description?: string },
+  ): Promise<BucketCollection> {
+    const bucketId = await this._resolveBucket(bucketOrName);
+    return this.post<BucketCollection>(`/v1/buckets/${bucketId}/collections`, request);
+  }
+
+  async grantBucketCollectionAccess(
+    bucketOrName: string,
+    collectionId: string,
+    request: CollectionGrantRequest,
+  ): Promise<CollectionGrant> {
+    const bucketId = await this._resolveBucket(bucketOrName);
+    return this.post<CollectionGrant>(
+      `/v1/buckets/${bucketId}/collections/${collectionId}/grants`,
+      {
+        subject_type: request.subjectType,
+        subject_id: request.subjectId,
+        permission: request.permission ?? "search",
+      },
+    );
   }
 
   // ---- Routing ----
