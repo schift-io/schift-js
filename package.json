@@ -1,6 +1,6 @@
 {
   "name": "@schift-io/sdk",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "Schift TypeScript SDK for embeddings, search, RAG chat, and workflows",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -49,11 +49,15 @@
   },
   "peerDependencies": {
     "js-yaml": ">=4.0.0",
+    "openai": ">=4.0.0",
     "react": ">=18.0.0",
     "react-dom": ">=18.0.0"
   },
   "peerDependenciesMeta": {
     "js-yaml": {
+      "optional": true
+    },
+    "openai": {
       "optional": true
     },
     "react": {

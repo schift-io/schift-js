@@ -1,4 +1,6 @@
 export { Schift } from "./client.js";
+export { openaiClient } from "./openai-compat.js";
+export type { OpenAIClientOptions } from "./openai-compat.js";
 export { SchiftError, AuthError, QuotaError, EntitlementError } from "./errors.js";
 export type {
   EmbedRequest,
