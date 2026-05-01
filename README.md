@@ -464,6 +464,29 @@ try {
 
 All models output to a canonical 1024-dimensional space via Schift's projection layer.
 
+## Releases
+
+Published from the `schift-io/schift` monorepo to npm via
+`.github/workflows/sdk-publish-ts.yml`. Cut a release with:
+
+```bash
+# 1. Bump version
+$EDITOR sdk/ts/package.json   # version: "0.X.Y"
+git add sdk/ts/package.json && git commit -m "chore(sdk-ts): bump 0.X.Y"
+git push origin main
+
+# 2. Create the release (tag pattern: npm-v*)
+gh release create npm-v0.X.Y \
+  --title "@schift-io/sdk v0.X.Y" \
+  --notes "..."
+```
+
+The workflow verifies the tag matches `package.json`, runs `tsc`, `npm test`,
+`npm run build`, then `npm publish --access public`.
+
+> The public mirror at `schift-io/schift-ts` is sync-only (no workflows
+> there). All publish automation lives in the monorepo.
+
 ## License
 
 MIT
