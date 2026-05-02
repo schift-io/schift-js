@@ -26,6 +26,8 @@ import type {
   CatalogModel,
   AggregateRequest,
   AggregateResponse,
+  BucketContextRequest,
+  BucketContextResponse,
 } from "./types.js";
 import { WorkflowClient } from "./workflow/client.js";
 import type { HttpTransport } from "./workflow/client.js";
@@ -931,6 +933,63 @@ export class Schift {
       model: request.model,
     });
   }
+  /**
+   * Single-call RAG context — Honcho-style token-budget-aware retrieval.
+   *
+   * Returns a paste-ready context block with [1] [2] citation markers,
+   * ready for direct injection into an LLM prompt. Backed by semantic cache
+   * (p50 cache hit ≤ 50ms, p50 miss ≤ 500ms).
+   *
+   * @example
+   * ```ts
+   * const ctx = await client.bucketContext("my-docs", {
+   *   query: "이 환자의 약물 상호작용은?",
+   *   tokenBudget: 4000,
+   *   mode: "rerank",
+   * });
+   * // ctx.text — paste into your LLM prompt directly
+   * // ctx.chunks — original retrieved chunks with scores
+   * // ctx.cacheHit — true when served from semantic cache
+   * ```
+   */
+  async bucketContext(
+    bucketOrName: string,
+    request: BucketContextRequest,
+  ): Promise<BucketContextResponse> {
+    const bucketId = await this._resolveBucket(bucketOrName);
+    const body: Record<string, unknown> = {
+      query: request.query,
+      token_budget: request.tokenBudget ?? 2000,
+      mode: request.mode ?? "auto",
+      include_messages: request.includeMessages ?? 0,
+      top_k: request.topK ?? 10,
+    };
+    if (request.sessionId !== undefined) body.session_id = request.sessionId;
+    if (request.filters !== undefined) body.filters = request.filters;
+
+    const raw = await this.post<{
+      text: string;
+      tokens: number;
+      chunks: Array<{ id: string; text: string; score: number; metadata: Record<string, string> }>;
+      session_turns: Array<{ role: string; content: string }>;
+      truncated_count: number;
+      skipped_count: number;
+      mode_used: string;
+      cache_hit: boolean;
+    }>(`/v1/buckets/${bucketId}/context`, body);
+
+    return {
+      text: raw.text,
+      tokens: raw.tokens,
+      chunks: raw.chunks,
+      sessionTurns: raw.session_turns,
+      truncatedCount: raw.truncated_count,
+      skippedCount: raw.skipped_count,
+      modeUsed: raw.mode_used,
+      cacheHit: raw.cache_hit,
+    };
+  }
+
   async bucketGraph(
     bucketOrName: string,
     query?: string,

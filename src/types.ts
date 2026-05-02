@@ -207,6 +207,56 @@ export interface CollectionGrantRequest {
   permission?: "search";
 }
 
+// ---- Bucket Context (Honcho-style single-call RAG) ----
+
+export interface BucketContextRequest {
+  /** User query to retrieve context for. */
+  query: string;
+  /** Optional session ID for prepending recent conversation turns. */
+  sessionId?: string;
+  /** Max tokens in the returned context block. Default 2000. */
+  tokenBudget?: number;
+  /** Pipeline mode. Default "auto". */
+  mode?: "auto" | "naive" | "hyde" | "rerank" | "decision-review";
+  /** Metadata filter dict passed to the underlying search. */
+  filters?: Record<string, unknown>;
+  /** Number of most recent session turns to prepend. Default 0. */
+  includeMessages?: number;
+  /** Number of chunks to retrieve before budget packing. Default 10. */
+  topK?: number;
+}
+
+export interface BucketContextChunk {
+  id: string;
+  text: string;
+  score: number;
+  metadata: Record<string, string>;
+}
+
+export interface BucketContextTurn {
+  role: string;
+  content: string;
+}
+
+export interface BucketContextResponse {
+  /** Paste-ready context string with [1] [2] citation markers. */
+  text: string;
+  /** Estimated token count of text. */
+  tokens: number;
+  /** Retrieved chunks (in citation order). */
+  chunks: BucketContextChunk[];
+  /** Prepended session turns (if include_messages > 0). */
+  sessionTurns: BucketContextTurn[];
+  /** How many chunks were truncated to fit budget. */
+  truncatedCount: number;
+  /** How many chunks were skipped due to budget. */
+  skippedCount: number;
+  /** Mode actually executed (may differ from requested when falling back). */
+  modeUsed: string;
+  /** True when served from semantic cache (latency ≤ 50ms). */
+  cacheHit: boolean;
+}
+
 // ---- Aggregation ----
 
 export interface AggregateRequest {
