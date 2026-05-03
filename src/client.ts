@@ -421,6 +421,7 @@ export class Schift {
 
     const decoder = new TextDecoder();
     let buffer = "";
+    let currentEventType: string | null = null;
 
     while (true) {
       const { done, value } = await reader.read();
@@ -430,7 +431,6 @@ export class Schift {
       const lines = buffer.split("\n");
       buffer = lines.pop() ?? "";
 
-      let currentEventType: string | null = null;
       for (const line of lines) {
         if (line.startsWith("event: ")) {
           currentEventType = line.slice(7).trim();

@@ -50,9 +50,9 @@ export class RAG {
   }
 
   /** RAG chat -- search + LLM answer in one call. */
-  async chat(query: string): Promise<ChatResult> {
+  async chat(message: string): Promise<ChatResult> {
     return this.transport.post<ChatResult>("/v1/chat", {
-      query,
+      message,
       bucket_id: this.bucket,
       top_k: this.topK,
     });
