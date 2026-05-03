@@ -22,6 +22,10 @@ export type {
   AggregateGroup,
   AggregateResponse,
   TemporalType,
+  BucketContextRequest,
+  BucketContextResponse,
+  BucketContextChunk,
+  BucketContextTurn,
 } from "./types.js";
 
 // ---- Tool Calling ----
