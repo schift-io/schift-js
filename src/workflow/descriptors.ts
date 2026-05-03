@@ -1704,6 +1704,73 @@ register(
 
 register(
   descriptor({
+    name: BlockType.SUBWORKFLOW,
+    displayName: "Subworkflow",
+    description: "Invoke another workflow as a subroutine and return its outputs.",
+    icon: "node:subworkflow",
+    iconColor: "#8b5cf6",
+    group: ["transform"],
+    codex: {
+      categories: [Category.CoreNodes, Category.Flow],
+      subcategories: { [Category.CoreNodes]: ["Flow"] },
+      alias: ["sub", "subflow", "child", "call", "invoke", "execute workflow"],
+    },
+    inputs: [mainPort()],
+    outputs: [mainPort()],
+    properties: [
+      {
+        displayName: "Workflow ID",
+        name: "workflow_id",
+        type: "string",
+        default: "",
+        required: true,
+        description: "ID of the workflow to invoke. Must belong to the same org.",
+      },
+      { displayName: "Timeout (s)", name: "timeout_s", type: "number", default: 0 },
+    ],
+  }),
+);
+
+register(
+  descriptor({
+    name: BlockType.OUTBOUND_WEBHOOK,
+    displayName: "Outbound Webhook",
+    description: "POST a configured payload to an external HTTPS URL.",
+    icon: "node:outbound-webhook",
+    iconColor: "#0ea5e9",
+    group: ["output"],
+    codex: {
+      categories: [Category.Communication],
+      alias: ["webhook", "post", "callback", "http", "outbound"],
+    },
+    inputs: [mainPort()],
+    outputs: [mainPort()],
+    properties: [
+      {
+        displayName: "URL",
+        name: "url",
+        type: "string",
+        default: "",
+        required: true,
+        placeholder: "https://example.com/hook",
+      },
+      { displayName: "Headers", name: "headers", type: "json", default: "{}" },
+      {
+        displayName: "Forward Inputs",
+        name: "forward_inputs",
+        type: "boolean",
+        default: false,
+        description:
+          "Auto-pack upstream inputs as the JSON body. Off by default to avoid data egress; explicit `body` always wins.",
+      },
+      { displayName: "Timeout (s)", name: "timeout", type: "number", default: 30 },
+      { displayName: "Retry", name: "retry", type: "number", default: 0 },
+    ],
+  }),
+);
+
+register(
+  descriptor({
     name: BlockType.WEB_SEARCH,
     displayName: "Web Search",
     description: "Search the web (Brave / SerpAPI / Tavily / Schift router).",
