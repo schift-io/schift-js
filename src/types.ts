@@ -102,6 +102,47 @@ export interface EmbedImageResponse {
 
 export type TemporalType = "before" | "after" | "between" | "as_of" | "latest";
 
+/**
+ * Operator-shaped value for a metadata filter field.
+ *
+ * Exactly one of {eq, like, prefix, in} must be set. SQL LIKE semantics for
+ * `like` (`%` = any chars, `_` = single char, `\%` / `\_` = literal). All
+ * matches are case-insensitive. Plain scalar values in a filter dict are
+ * treated as exact match for backward compatibility.
+ *
+ * @example
+ *   filter: {
+ *     tag: "urgent",                       // exact match
+ *     source_url: { like: "%legal%" },     // substring
+ *     filename: { prefix: "2024-" },       // starts-with
+ *     doc_type: { in: ["policy", "spec"] } // membership
+ *   }
+ */
+export interface FilterOperator {
+  /** Exact match. Lowered to engine for index-time pruning. */
+  eq?: string | number | boolean;
+  /** Not-equal. Post-filter. */
+  ne?: string | number | boolean;
+  /** SQL LIKE pattern: % = any, _ = single, \% / \_ = literal. Post-filter. */
+  like?: string;
+  /** Starts-with (case-insensitive). Post-filter. */
+  prefix?: string;
+  /** Membership in list (max 100 entries). Post-filter. */
+  in?: Array<string | number | boolean>;
+  /** Greater-than. Numeric or ISO date string. Post-filter. */
+  gt?: string | number;
+  /** Greater-than-or-equal. */
+  gte?: string | number;
+  /** Less-than. */
+  lt?: string | number;
+  /** Less-than-or-equal. */
+  lte?: string | number;
+  /** Field presence. true = require non-empty; false = require missing. */
+  exists?: boolean;
+}
+
+export type FilterValue = string | number | boolean | FilterOperator;
+
 export interface SearchRequest {
   query?: string;
   queryVector?: number[];
@@ -111,7 +152,7 @@ export interface SearchRequest {
   collection?: string;
   topK?: number;
   model?: string;
-  filter?: Record<string, unknown>;
+  filter?: Record<string, FilterValue>;
   mode?: "vector" | "hybrid";
   rerank?: boolean;
   rerankTopK?: number;
@@ -124,6 +165,25 @@ export interface SearchRequest {
   temporalStart?: number;
   /** Epoch millis — used by "between" only. */
   temporalEnd?: number;
+  /** Drop hits below this score (0.0–1.0). Applied after rerank if rerank=true. */
+  minScore?: number;
+  /** Attach engine graph neighbors (typed edges) to each hit. */
+  expandNeighbors?: ExpandNeighborsParams;
+}
+
+export interface ExpandNeighborsParams {
+  /** RelationTypes to surface, e.g. ["follows","has_child"]. Omit = all. */
+  relations?: string[];
+  direction?: "outgoing" | "incoming" | "both";
+  /** Cap edges returned per hit (default 10, max 100). */
+  maxPerHit?: number;
+}
+
+export interface NeighborEdge {
+  id: string;
+  relation: string;
+  direction: "outgoing" | "incoming";
+  weight: number;
 }
 
 export interface SearchResult {
@@ -136,6 +196,8 @@ export interface SearchResult {
     timestamp?: number;
     frame?: number;
   };
+  /** Engine graph neighbors, present only when expand_neighbors is set. */
+  neighbors?: NeighborEdge[];
 }
 
 export interface ProjectRequest {

@@ -1008,6 +1008,26 @@ export class Schift {
     return this.get<BucketCollection[]>(`/v1/buckets/${bucketId}/collections`);
   }
 
+  /**
+   * Aggregate metadata field values across a bucket — powers filter UIs
+   * by surfacing what values exist for each metadata key.
+   */
+  async bucketFacets(
+    bucketOrName: string,
+    fields: string[],
+    limitPerField = 20,
+  ): Promise<{
+    bucket_id: string;
+    facets: Record<string, Array<{ value: string; count: number }>>;
+    totals: Record<string, number>;
+  }> {
+    const bucketId = await this._resolveBucket(bucketOrName);
+    return this.post(`/v1/buckets/${bucketId}/facets`, {
+      fields,
+      limit_per_field: limitPerField,
+    });
+  }
+
   async createBucketCollection(
     bucketOrName: string,
     request: { name: string; description?: string },
