@@ -169,6 +169,13 @@ export interface SearchRequest {
   minScore?: number;
   /** Attach engine graph neighbors (typed edges) to each hit. */
   expandNeighbors?: ExpandNeighborsParams;
+  /** Whitelist response fields. Dotted paths like "metadata.title" supported. */
+  includeFields?: string[];
+  /** Blacklist response fields. Ignored if includeFields is set. */
+  excludeFields?: string[];
+  /** Per-hit citation template, e.g. "[{title}:{page}]". {key} substitutes
+   *  from metadata; id/score/text are top-level fallbacks. */
+  citationFormat?: string;
 }
 
 export interface ExpandNeighborsParams {
@@ -198,6 +205,8 @@ export interface SearchResult {
   };
   /** Engine graph neighbors, present only when expand_neighbors is set. */
   neighbors?: NeighborEdge[];
+  /** Formatted citation string, present only when citationFormat was set. */
+  citation?: string;
 }
 
 export interface ProjectRequest {
