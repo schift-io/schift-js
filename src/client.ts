@@ -29,6 +29,7 @@ import type {
   BucketContextRequest,
   BucketContextResponse,
 } from "./types.js";
+import { _recordResponseInActiveTracker } from "./tracker.js";
 import { WorkflowClient } from "./workflow/client.js";
 import type { HttpTransport } from "./workflow/client.js";
 import { AgentsClient } from "./agents/client.js";
@@ -1354,7 +1355,12 @@ export class Schift {
     if (!resp.ok) {
       await this.throwError(resp);
     }
-    return resp.json() as Promise<T>;
+    const body = (await resp.json()) as T;
+    // Phase A token tracker hook: if a TokenTracker is active in this
+    // async context, fold the response's `usage` field into it. No-op
+    // when no tracker is active.
+    _recordResponseInActiveTracker(body);
+    return body;
   }
 
   private async throwError(resp: Response): Promise<never> {
