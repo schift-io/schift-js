@@ -47,7 +47,7 @@ describe("RAG", () => {
     const result = await rag.chat("what is the meaning?");
     expect(mockTransport.post).toHaveBeenCalledWith(
       "/v1/chat",
-      expect.objectContaining({ query: "what is the meaning?", bucket_id: "docs" }),
+      expect.objectContaining({ message: "what is the meaning?", bucket_id: "docs" }),
     );
     expect(result.answer).toBe("The answer is 42");
   });
