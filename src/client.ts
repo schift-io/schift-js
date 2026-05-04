@@ -39,7 +39,38 @@ import { SchiftTools } from "./tools.js";
 
 const DEFAULT_BASE_URL = "https://api.schift.io";
 const DEFAULT_TIMEOUT = 60_000;
-const VERSION = "0.8.0";
+const VERSION = "0.9.2";
+
+interface OpenAIEmbeddingsResponse {
+  object: "list";
+  data: Array<{ object: "embedding"; index: number; embedding: number[] }>;
+  model: string;
+  usage: { prompt_tokens: number; total_tokens: number };
+}
+
+function unwrapSingle(raw: OpenAIEmbeddingsResponse): EmbedResponse {
+  const first = raw.data[0];
+  if (!first) {
+    throw new SchiftError("embeddings response had no data");
+  }
+  return {
+    embedding: first.embedding,
+    model: raw.model,
+    dimensions: first.embedding.length,
+    usage: { tokens: raw.usage.total_tokens },
+  };
+}
+
+function unwrapBatch(raw: OpenAIEmbeddingsResponse): EmbedBatchResponse {
+  const sorted = [...raw.data].sort((a, b) => a.index - b.index);
+  const embeddings = sorted.map((d) => d.embedding);
+  return {
+    embeddings,
+    model: raw.model,
+    dimensions: embeddings[0]?.length ?? 0,
+    usage: { tokens: raw.usage.total_tokens, count: embeddings.length },
+  };
+}
 
 export class Schift {
   private readonly apiKey: string;
@@ -254,24 +285,35 @@ export class Schift {
 
   // ---- Embeddings ----
 
-  /** Embed a single text string. */
+  /**
+   * Embed a single text string via the OpenAI-compatible /v1/embeddings endpoint.
+   *
+   * Wraps the OpenAI response shape into the SDK's `EmbedResponse` shape so
+   * existing callers don't need to change.
+   */
   async embed(request: EmbedRequest): Promise<EmbedResponse> {
-    return this.post("/v1/embed", {
-      text: request.text,
+    const raw = await this.post<OpenAIEmbeddingsResponse>("/v1/embeddings", {
+      input: request.text,
       model: request.model,
       dimensions: request.dimensions,
       task_type: request.taskType,
     });
+    return unwrapSingle(raw);
   }
 
-  /** Embed multiple texts in a single request. */
+  /**
+   * Embed multiple texts via the OpenAI-compatible /v1/embeddings endpoint.
+   *
+   * Wraps the OpenAI response shape into the SDK's `EmbedBatchResponse` shape.
+   */
   async embedBatch(request: EmbedBatchRequest): Promise<EmbedBatchResponse> {
-    return this.post("/v1/embed/batch", {
-      texts: request.texts,
+    const raw = await this.post<OpenAIEmbeddingsResponse>("/v1/embeddings", {
+      input: request.texts,
       model: request.model,
       dimensions: request.dimensions,
       task_type: request.taskType,
     });
+    return unwrapBatch(raw);
   }
 
   /** Embed images (base64-encoded). Requires a vision-capable model (e.g. schift-embed-1). */
