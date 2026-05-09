@@ -93,6 +93,9 @@ export const WorkflowTemplate = {
   CONVERSATIONAL_RAG: "conversational_rag",
   MULTI_SOURCE_RAG: "multi_source_rag",
   AGENTIC_RAG: "agentic_rag",
+  IMAGE_OCR_INGEST: "image_ocr_ingest",
+  CHAT_RAG: "chat_rag",
+  CHATROOM_MEMORY_SEARCH: "chatroom_memory_search",
 } as const;
 
 export type WorkflowTemplate =

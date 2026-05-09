@@ -465,14 +465,17 @@ describe("Type constants", () => {
     expect(types).toContain("metadata_extractor");
   });
 
-  it("WorkflowTemplate has all 5 templates", () => {
+  it("WorkflowTemplate covers server workflow presets", () => {
     const templates = Object.values(WorkflowTemplate);
-    expect(templates).toHaveLength(5);
+    expect(templates).toHaveLength(8);
     expect(templates).toContain("basic_rag");
     expect(templates).toContain("document_qa");
     expect(templates).toContain("conversational_rag");
     expect(templates).toContain("multi_source_rag");
     expect(templates).toContain("agentic_rag");
+    expect(templates).toContain("image_ocr_ingest");
+    expect(templates).toContain("chat_rag");
+    expect(templates).toContain("chatroom_memory_search");
   });
 
   it("WorkflowStatus has draft, active, published, archived", () => {

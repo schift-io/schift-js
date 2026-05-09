@@ -222,6 +222,7 @@ export default function WorkflowList({ onOpenBuilder }: WorkflowListProps) {
                   { label: "Basic RAG", template: "basic_rag" },
                   { label: "Document QA", template: "document_qa" },
                   { label: "Chat RAG", template: "chat_rag" },
+                  { label: "Chatroom Memory", template: "chatroom_memory_search" },
                   { label: "OCR Ingestion", template: "image_ocr_ingest" },
                   { label: "Conversational", template: "conversational_rag" },
                 ].map((opt) => (

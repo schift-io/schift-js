@@ -740,6 +740,81 @@ describe("Error handling", () => {
     expect(result.status).toBe("failed");
     expect(result.error).toMatch(/collection/i);
   });
+
+  it("passes configured dimensions to single embed calls", async () => {
+    const calls: unknown[][] = [];
+    const mockClient = {
+      embed: async (...args: unknown[]) => {
+        calls.push(args);
+        return { values: [0.1, 0.2], model: "schift-embed-1" };
+      },
+    };
+    const def = makeDef(
+      [
+        { id: "start", type: "start" },
+        {
+          id: "emb",
+          type: "embedder",
+          config: { model: "schift-embed-1", dimensions: 128 },
+        },
+      ],
+      [{ source: "start", target: "emb" }],
+    );
+    const runner = new WorkflowRunner(def, mockClient);
+    const result = await runner.run({ text: "hello" });
+
+    expect(result.status).toBe("completed");
+    expect(calls).toEqual([
+      ["hello", { model: "schift-embed-1", dimensions: 128 }],
+    ]);
+  });
+
+  it("passes configured dimensions to batch embed calls", async () => {
+    const calls: unknown[][] = [];
+    const mockClient = {
+      embedBatch: async (...args: unknown[]) => {
+        calls.push(args);
+        return [{ values: [0.1] }, { values: [0.2] }];
+      },
+    };
+    const def = makeDef(
+      [
+        { id: "start", type: "start" },
+        {
+          id: "emb",
+          type: "embedder",
+          config: { model: "schift-embed-1", dimensions: 128 },
+        },
+      ],
+      [{ source: "start", target: "emb" }],
+    );
+    const runner = new WorkflowRunner(def, mockClient);
+    const result = await runner.run({ texts: ["a", "b"] });
+
+    expect(result.status).toBe("completed");
+    expect(calls).toEqual([
+      [["a", "b"], { model: "schift-embed-1", dimensions: 128 }],
+    ]);
+  });
+
+  it("rejects d alias for embed dimensions", async () => {
+    const def = makeDef(
+      [
+        { id: "start", type: "start" },
+        {
+          id: "emb",
+          type: "embedder",
+          config: { model: "schift-embed-1", d: 128 },
+        },
+      ],
+      [{ source: "start", target: "emb" }],
+    );
+    const runner = new WorkflowRunner(def, { embed: async () => ({ values: [] }) });
+    const result = await runner.run({ text: "hello" });
+
+    expect(result.status).toBe("failed");
+    expect(result.error).toMatch(/use 'dimensions'/);
+  });
 });
 
 // =====================================================================

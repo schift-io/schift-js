@@ -14,18 +14,23 @@ export class EmbedderNode extends SDKBaseNode {
 
     const client = ctx.client as Record<string, (...args: unknown[]) => unknown>;
     const model = this.config.model as string | undefined;
+    if ("d" in this.config) {
+      throw new Error("EmbedderNode config uses unsupported field 'd'; use 'dimensions'.");
+    }
+    const dimensions = this.config.dimensions as number | undefined;
+    const embedOptions = { model, dimensions };
     const text = (inputs.text as string) ?? "";
     const texts = (inputs.texts as string[]) ?? [];
 
     if (texts.length) {
       const results = await maybeAwait(
-        client.embedBatch(texts, { model }) as Promise<{ values: number[] }[]>,
+        client.embedBatch(texts, embedOptions) as Promise<{ values: number[] }[]>,
       );
       const embeddings = results.map((r: { values: number[] }) => r.values);
       return { embeddings, model: model ?? "" };
     } else if (text) {
       const result = await maybeAwait(
-        client.embed(text, { model }) as Promise<{
+        client.embed(text, embedOptions) as Promise<{
           values: number[];
           model: string;
         }>,
